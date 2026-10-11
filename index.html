@@ -53,6 +53,7 @@
     </main>
 
     <script>
+        // HIER DEINE GANZ FRISCH KOPIERTE WEB-APP-URL EINTRAGEN:
         const API_URL = "https://script.google.com/macros/s/AKfycbxDMU3SRex-kTR6c1XBHS5PyDejCK_sa4hqst4VO6sbeKCAkvmufBdq1w1-eKY7ZlAw/exec";
         let items = [];
 
@@ -61,13 +62,15 @@
                 const res = await fetch(API_URL);
                 const data = await res.json();
                 if (Array.isArray(data)) {
-                    items = data.map(i => ({
-                        id: i.id || String(Math.random()),
-                        text: i.text || "Unbekannt",
-                        category: i.category || "Sonstiges",
-                        quantity: i.quantity || 1,
-                        bought: !!i.bought
-                    }));
+                    items = data
+                        .filter(i => i && (i.text || i[1])) // Leere/ungültige Zeilen filtern
+                        .map(i => ({
+                            id: i.id || i[0] || String(Math.random()),
+                            text: i.text || i[1] || "Unbekannter Artikel",
+                            category: i.category || i[2] || "Sonstiges",
+                            quantity: i.quantity || i[3] || 1,
+                            bought: String(i.bought ?? i[4]) === "true" || i.bought === true || i[4] === true
+                        }));
                     render();
                 }
             } catch (e) {
@@ -140,7 +143,7 @@
 
             const categories = [...new Set(items.map(i => i.category || "Sonstiges"))];
 
-            if (categories.length === 0) {
+            if (categories.length === 0 || items.length === 0) {
                 container.innerHTML = `<div class="text-center py-8 text-slate-400">Keine Artikel auf der Liste.</div>`;
                 return;
             }
@@ -175,7 +178,7 @@
         }
 
         loadFromCloud();
-        setInterval(loadFromCloud, 5000); // Polling alle 5 Sekunden für Live-Abgleich zwischen Browsern
+        setInterval(loadFromCloud, 5000); // Live-Polling alle 5 Sekunden
     </script>
 </body>
 </html>
