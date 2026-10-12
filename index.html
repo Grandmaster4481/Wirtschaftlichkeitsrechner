@@ -1,103 +1,283 @@
-/* STREAMING_CHUNK:Configuring Google Apps Script backend... */
-function doGet(e) {
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    
-    // 1. Artikel auslesen (Reiter "Tabellenblatt1")
-    var itemSheet = ss.getSheetByName("Tabellenblatt1") || ss.getSheets()[0];
-    var itemData = itemSheet.getDataRange().getValues();
-    var items = [];
-    
-    for (var i = 1; i < itemData.length; i++) {
-      var row = itemData[i];
-      var name = String(row[0] || "").trim();
-      
-      if (name !== "") {
-        items.push({
-          name: name,
-          market: String(row[1] || "Allgemein").trim(),
-          quantity: String(row[2] || "1").trim(),
-          checked: row[3] === true || String(row[3]).toLowerCase() === "true",
-          id: row[4] ? String(row[4]) : 'id_' + i + '_' + Date.now()
-        });
-      }
-    }
-    
-    // 2. Märkte & Farben auslesen (Reiter "Markt")
-    var marketSheet = ss.getSheetByName("Markt");
-    var markets = [];
-    
-    if (marketSheet) {
-      var marketData = marketSheet.getDataRange().getValues();
-      for (var j = 0; j < marketData.length; j++) {
-        var mRow = marketData[j];
-        var mName = String(mRow[0] || "").trim();
-        
-        if (mName !== "" && mName.toLowerCase() !== "markt" && mName.toLowerCase() !== "name") {
-          markets.push({
-            name: mName,
-            bgColor: String(mRow[1] || "grau").trim(),
-            textColor: String(mRow[2] || "weiss").trim()
-          });
-        }
-      }
-    }
-    
-    if (markets.length === 0) {
-      markets = [
-        { name: "Allgemein", bgColor: "grau", textColor: "weiss" },
-        { name: "Edeka", bgColor: "gelb", textColor: "blau" },
-        { name: "Aldi", bgColor: "grau", textColor: "hellblau" },
-        { name: "dm", bgColor: "grau", textColor: "blau" }
-      ];
-    }
-    
-    return ContentService.createTextOutput(JSON.stringify({ items: items, markets: markets }))
-      .setMimeType(ContentService.MimeType.JSON);
-      
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ error: err.toString(), items: [], markets: [] }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Familien-Einkaufsliste</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-24 font-sans antialiased">
 
-function doPost(e) {
-  try {
-    var data = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName("Tabellenblatt1") || ss.getSheets()[0];
-    
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(["Artikel", "Markt", "Anzahl", "Erledigt", "ID"]);
-    }
-    
-    var rows = sheet.getDataRange().getValues();
-    
-    if (data.action === "add") {
-      sheet.appendRow([data.name, data.market || "Allgemein", data.quantity || "1", false, data.id]);
-    } 
-    else if (data.action === "toggle") {
-      for (var i = 1; i < rows.length; i++) {
-        if (String(rows[i][4]) === String(data.id)) {
-          var currentVal = rows[i][3] === true || String(rows[i][3]).toLowerCase() === "true";
-          sheet.getRange(i + 1, 4).setValue(!currentVal);
-          break;
+    <div class="max-w-md mx-auto p-4 sm:p-6">
+        <header class="mb-6 mt-2 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">🛒 Einkaufsliste</h1>
+                <p class="text-xs text-slate-400">Mit Markt-Farben &amp; Mengeneingabe</p>
+            </div>
+            <button onclick="loadData()" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-full font-medium transition flex items-center gap-1">
+                🔄 Aktualisieren
+            </button>
+        </header>
+
+        <!-- Formular zum Hinzufügen -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
+            <form id="addForm" onsubmit="addItem(event)" class="space-y-3">
+                <div>
+                    <input type="text" id="itemName" placeholder="Neuer Artikel (z.B. Milch)..." required
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                </div>
+                <div class="flex gap-2">
+                    <select id="itemMarket" class="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                        <option value="Allgemein">Allgemein</option>
+                    </select>
+                    <div class="w-24">
+                        <input type="text" id="itemQty" value="1" placeholder="Menge"
+                            class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-indigo-500/20 transition">
+                    + Artikel hinzufügen
+                </button>
+            </form>
+        </div>
+
+        <!-- Einkaufsliste Anzeige -->
+        <div id="shoppingList" class="space-y-4">
+            <div class="text-center py-10 text-slate-400 text-sm bg-white rounded-2xl border border-slate-100">Lade Daten aus Google Sheets...</div>
+        </div>
+    </div>
+
+    <script>
+        // HINWEIS: Ersetze diese URL bei Bedarf mit deiner aktuellen Web-App-URL (endet mit /exec)
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyraN51T7Olunfs830ukzQZZBxNcZJvgpg1T41sTHhnOy1k-2qtuLQJ31ezOQRBBui7/exec";
+        
+        let allItems = [];
+        let marketDataMap = {};
+
+        // Übersetzung deutscher Farbnamen aus Google Sheets in Farbwerte
+        function parseColorName(colorStr, fallbackHex) {
+            if (!colorStr) return fallbackHex;
+            const c = String(colorStr).toLowerCase().trim();
+
+            const palette = {
+                'gelb': '#facc15',
+                'blau': '#2563eb',
+                'hellblau': '#38bdf8',
+                'dunkelblau': '#1e3a8a',
+                'grau': '#94a3b8',
+                'dunkelgrau': '#334155',
+                'rot': '#dc2626',
+                'orange': '#f97316',
+                'weiss': '#ffffff',
+                'weiß': '#ffffff',
+                'schwarz': '#000000',
+                'gruen': '#22c55e',
+                'grün': '#22c55e'
+            };
+
+            return palette[c] || (c.startsWith('#') ? c : fallbackHex);
         }
-      }
-    } 
-    else if (data.action === "delete") {
-      for (var k = rows.length - 1; k >= 1; k--) {
-        if (String(rows[k][4]) === String(data.id)) {
-          sheet.deleteRow(k + 1);
-          break;
+
+        // Erzeugt aus einer Hex-Farbe einen weichen Pastellton für den Header
+        function getLightTintFromHex(hex) {
+            let cleanHex = hex.replace('#', '');
+            if (cleanHex.length === 3) {
+                cleanHex = cleanHex.split('').map(x => x + x).join('');
+            }
+            if (cleanHex.length !== 6) return '#f8fafc';
+
+            const num = parseInt(cleanHex, 16);
+            if (isNaN(num)) return '#f8fafc';
+
+            const r = (num >> 16) & 255;
+            const g = (num >> 8) & 255;
+            const b = num & 255;
+
+            const tintR = Math.round(r + (255 - r) * 0.82);
+            const tintG = Math.round(g + (255 - g) * 0.82);
+            const tintB = Math.round(b + (255 - b) * 0.82);
+
+            return `rgb(${tintR}, ${tintG}, ${tintB})`;
         }
-      }
-    }
-    
-    return ContentService.createTextOutput(JSON.stringify({ success: true }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
+
+        async function loadData() {
+            try {
+                const response = await fetch(APPS_SCRIPT_URL);
+                const data = await response.json();
+                
+                marketDataMap = {};
+                const marketSelect = document.getElementById('itemMarket');
+                const selectedVal = marketSelect.value;
+                marketSelect.innerHTML = '';
+
+                if (data.markets && data.markets.length > 0) {
+                    data.markets.forEach(m => {
+                        const mKey = m.name.toLowerCase().trim();
+                        const bgHex = parseColorName(m.bgColor, '#94a3b8');
+                        const textHex = parseColorName(m.textColor, '#ffffff');
+
+                        marketDataMap[mKey] = {
+                            bg: bgHex,
+                            text: textHex,
+                            lightBg: getLightTintFromHex(bgHex)
+                        };
+
+                        const opt = document.createElement('option');
+                        opt.value = m.name;
+                        opt.textContent = m.name;
+                        marketSelect.appendChild(opt);
+                    });
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = "Allgemein";
+                    opt.textContent = "Allgemein";
+                    marketSelect.appendChild(opt);
+                }
+                
+                if (selectedVal && Array.from(marketSelect.options).some(o => o.value === selectedVal)) {
+                    marketSelect.value = selectedVal;
+                }
+
+                allItems = (data.items || []).map(item => ({
+                    id: item.id || 'id_' + Math.random(),
+                    name: item.name || "Unbenannter Artikel",
+                    market: item.market || "Allgemein",
+                    quantity: item.quantity || "1",
+                    checked: !!item.checked
+                }));
+
+                renderUI();
+            } catch (err) {
+                console.error("Fehler beim Laden:", err);
+                document.getElementById('shoppingList').innerHTML = `<div class="text-center py-6 text-rose-500 text-sm bg-white rounded-2xl border border-slate-100">Verbindungsfehler. Bitte prüfen, ob die Web-App als /exec URL aufgerufen wird.</div>`;
+            }
+        }
+
+        function renderUI() {
+            const container = document.getElementById('shoppingList');
+            container.innerHTML = '';
+
+            if (allItems.length === 0) {
+                container.innerHTML = `<div class="text-center py-10 text-slate-400 text-sm bg-white rounded-2xl border border-slate-100">Die Liste ist leer. Alles eingekauft! 🎉</div>`;
+                return;
+            }
+
+            const groups = {};
+            allItems.forEach(item => {
+                const m = item.market || "Allgemein";
+                if (!groups[m]) groups[m] = [];
+                groups[m].push(item);
+            });
+
+            for (const [marketName, items] of Object.entries(groups)) {
+                const mKey = marketName.toLowerCase().trim();
+                const style = marketDataMap[mKey] || { bg: '#94a3b8', text: '#ffffff', lightBg: '#f1f5f9' };
+
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden mb-4';
+                
+                const headerHtml = `
+                    <div class="px-4 py-3 flex items-center justify-between border-b border-slate-200/60" style="background-color: ${style.lightBg};">
+                        <div class="flex items-center gap-2.5">
+                            <div class="px-3 py-1 rounded-lg font-extrabold text-xs shadow-xs tracking-wider" style="background-color: ${style.bg}; color: ${style.text};">
+                                ${escapeHtml(marketName)}
+                            </div>
+                        </div>
+                        <span class="text-xs font-semibold px-2.5 py-1 bg-white/90 rounded-full text-slate-600 shadow-2xs">
+                            ${items.length} ${items.length === 1 ? 'Artikel' : 'Artikel'}
+                        </span>
+                    </div>
+                `;
+
+                const itemsList = document.createElement('div');
+                itemsList.className = 'divide-y divide-slate-100';
+
+                items.forEach(item => {
+                    const row = document.createElement('div');
+                    row.className = `p-3.5 flex items-center justify-between transition ${item.checked ? 'bg-slate-50/70 opacity-50' : 'hover:bg-slate-50/50'}`;
+                    
+                    row.innerHTML = `
+                        <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onclick="toggleItem('${escapeHtml(item.id)}')">
+                            <input type="checkbox" ${item.checked ? 'checked' : ''} class="w-5 h-5 accent-indigo-600 rounded cursor-pointer">
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold truncate ${item.checked ? 'line-through text-slate-400' : 'text-slate-800'}">${escapeHtml(item.name)}</p>
+                                <span class="text-xs text-slate-400 font-medium">Menge: ${escapeHtml(item.quantity || '1')}</span>
+                            </div>
+                        </div>
+                        <button onclick="deleteItem('${escapeHtml(item.id)}')" class="text-slate-300 hover:text-rose-500 p-2 transition">
+                            🗑️
+                        </button>
+                    `;
+                    itemsList.appendChild(row);
+                });
+
+                groupDiv.innerHTML = headerHtml;
+                groupDiv.appendChild(itemsList);
+                container.appendChild(groupDiv);
+            }
+        }
+
+        function addItem(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('itemName');
+            const marketInput = document.getElementById('itemMarket');
+            const qtyInput = document.getElementById('itemQty');
+            
+            const newItem = {
+                id: 'id_' + Date.now(),
+                name: nameInput.value.trim(),
+                market: marketInput.value,
+                quantity: qtyInput.value.trim() || "1",
+                checked: false
+            };
+
+            allItems.unshift(newItem);
+            nameInput.value = '';
+            qtyInput.value = '1';
+            nameInput.focus();
+            renderUI();
+
+            fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add', ...newItem })
+            });
+        }
+
+        function toggleItem(id) {
+            const item = allItems.find(i => i.id === id);
+            if (item) {
+                item.checked = !item.checked;
+                renderUI();
+
+                fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'toggle', id: id })
+                });
+            }
+        }
+
+        function deleteItem(id) {
+            allItems = allItems.filter(i => i.id !== id);
+            renderUI();
+
+            fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'delete', id: id })
+            });
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        loadData();
+    </script>
+</body>
+</html>
