@@ -65,8 +65,8 @@
 
     <!-- JavaScript Logik -->
     <script>
-        // TRAGE HIER DEINE GOOGLE APPS SCRIPT WEB-APP URL EIN:
-        const APPS_SCRIPT_URL = "HIER_DEINE_APPS_SCRIPT_URL_EINSETZEN";
+        // Deine hinterlegte Google Apps Script Web-App URL:
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyraN51T7Olunfs830ukzQZZBxNcZJvgpg1T41sTHhnOy1k-2qtuLQJ31ezOQRBBui7/exec";
 
         window.addEventListener("DOMContentLoaded", () => {
             ladeDaten();
@@ -74,14 +74,6 @@
 
         async function ladeDaten() {
             const container = document.getElementById("shoppingListContainer");
-            
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("HIER_DEINE")) {
-                container.innerHTML = `
-                    <div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm">
-                        ⚠️ <strong>Konfiguration fehlt:</strong> Bitte trage deine Google Apps Script URL in der <code>index.html</code> ein!
-                    </div>`;
-                return;
-            }
 
             try {
                 const response = await fetch(APPS_SCRIPT_URL);
@@ -121,7 +113,6 @@
                 selectElement.appendChild(option);
             }
 
-            // Auswahl beibehalten falls möglich
             if (currentSelection && Array.from(selectElement.options).some(o => o.value === currentSelection)) {
                 selectElement.value = currentSelection;
             }
