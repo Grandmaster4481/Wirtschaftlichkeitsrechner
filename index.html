@@ -1,61 +1,111 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Familien-Einkaufsliste</title>
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS with Dark Mode support -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <script>
+        // Theme initialisieren vor dem Rendern, um Flackern zu verhindern
+        if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen pb-24 font-sans antialiased">
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen pb-24 font-sans antialiased transition-colors duration-200">
 
     <div class="max-w-md mx-auto p-4 sm:p-6">
         <header class="mb-6 mt-2 flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-tight">🛒 Einkaufsliste</h1>
-                <p class="text-xs text-slate-400">Mit Markt-Farben &amp; Mengeneingabe</p>
+                <h1 class="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight">🛒 Einkaufsliste</h1>
+                <p class="text-xs text-slate-400 dark:text-slate-500">Märkte, Farben &amp; Dark Mode</p>
             </div>
-            <button onclick="loadData()" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-full font-medium transition flex items-center gap-1">
-                🔄 Aktualisieren
-            </button>
+            <div class="flex items-center gap-2">
+                <span id="connectionBadge" class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" title="Verbunden"></span>
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" id="themeBtn" class="text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition active:scale-95 font-medium" title="Theme wechseln">
+                    🌙
+                </button>
+                <button onclick="ladeDaten()" class="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-1 font-medium" title="Aktualisieren">
+                    🔄
+                </button>
+            </div>
         </header>
 
-        <!-- Formular zum Hinzufügen -->
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
-            <form id="addForm" onsubmit="addItem(event)" class="space-y-3">
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 mb-6">
+            <form id="addForm" onsubmit="artikelHinzufuegen(event)" class="space-y-3">
                 <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Artikel</label>
+                        <button onclick="sprachEingabeStarten()" id="micButton" type="button" class="text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-lg transition flex items-center gap-1 font-semibold">
+                            🎤 Einsprechen
+                        </button>
+                    </div>
                     <input type="text" id="itemName" placeholder="Neuer Artikel (z.B. Milch)..." required
-                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-slate-100">
                 </div>
                 <div class="flex gap-2">
-                    <select id="itemMarket" class="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
-                        <option value="Allgemein">Allgemein</option>
-                    </select>
+                    <div class="flex-1">
+                        <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Supermarkt</label>
+                        <select id="itemMarket" class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 dark:text-slate-100">
+                            <option value="Allgemein">Allgemein</option>
+                        </select>
+                    </div>
                     <div class="w-24">
+                        <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Menge</label>
                         <input type="text" id="itemQty" value="1" placeholder="Menge"
-                            class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+                            class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 dark:text-slate-100">
                     </div>
                 </div>
-                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-indigo-500/20 transition">
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-blue-500/20 transition">
                     + Artikel hinzufügen
                 </button>
             </form>
         </div>
 
-        <!-- Einkaufsliste Anzeige -->
-        <div id="shoppingList" class="space-y-4">
-            <div class="text-center py-10 text-slate-400 text-sm bg-white rounded-2xl border border-slate-100">Lade Daten aus Google Sheets...</div>
+        <div id="shoppingListContainer" class="space-y-4">
+            <div class="text-center py-10 text-slate-400 text-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">Lade Daten aus Google Sheets...</div>
         </div>
     </div>
 
     <script>
-        // HINWEIS: Ersetze diese URL bei Bedarf mit deiner aktuellen Web-App-URL (endet mit /exec)
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyraN51T7Olunfs830ukzQZZBxNcZJvgpg1T41sTHhnOy1k-2qtuLQJ31ezOQRBBui7/exec";
         
         let allItems = [];
         let marketDataMap = {};
 
-        // Übersetzung deutscher Farbnamen aus Google Sheets in Farbwerte
+        window.addEventListener("DOMContentLoaded", () => {
+            aktualisiereThemeIcon();
+            ladeDaten();
+        });
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+            aktualisiereThemeIcon();
+            renderUI(); // Neu rendern für angepasste Markt-Farbtöne im Darkmode
+        }
+
+        function aktualisiereThemeIcon() {
+            const btn = document.getElementById('themeBtn');
+            const isDark = document.documentElement.classList.contains('dark');
+            btn.textContent = isDark ? '☀️' : '🌙';
+        }
+
         function parseColorName(colorStr, fallbackHex) {
             if (!colorStr) return fallbackHex;
             const c = String(colorStr).toLowerCase().trim();
@@ -79,7 +129,6 @@
             return palette[c] || (c.startsWith('#') ? c : fallbackHex);
         }
 
-        // Erzeugt aus einer Hex-Farbe einen weichen Pastellton für den Header
         function getLightTintFromHex(hex) {
             let cleanHex = hex.replace('#', '');
             if (cleanHex.length === 3) {
@@ -94,17 +143,26 @@
             const g = (num >> 8) & 255;
             const b = num & 255;
 
-            const tintR = Math.round(r + (255 - r) * 0.82);
-            const tintG = Math.round(g + (255 - g) * 0.82);
-            const tintB = Math.round(b + (255 - b) * 0.82);
+            const isDarkTheme = document.documentElement.classList.contains('dark');
+            // Im Dunkelmodus einen sehr dezenten dunklen/getönten Hintergrund erzeugen
+            const factor = isDarkTheme ? 0.18 : 0.88;
+            const baseTarget = isDarkTheme ? 15 : 255;
+
+            const tintR = Math.round(r + (baseTarget - r) * factor);
+            const tintG = Math.round(g + (baseTarget - g) * factor);
+            const tintB = Math.round(b + (baseTarget - b) * factor);
 
             return `rgb(${tintR}, ${tintG}, ${tintB})`;
         }
 
-        async function loadData() {
+        async function ladeDaten() {
+            const badge = document.getElementById('connectionBadge');
             try {
                 const response = await fetch(APPS_SCRIPT_URL);
                 const data = await response.json();
+                
+                badge.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block";
+                badge.title = "Verbunden";
                 
                 marketDataMap = {};
                 const marketSelect = document.getElementById('itemMarket');
@@ -150,16 +208,23 @@
                 renderUI();
             } catch (err) {
                 console.error("Fehler beim Laden:", err);
-                document.getElementById('shoppingList').innerHTML = `<div class="text-center py-6 text-rose-500 text-sm bg-white rounded-2xl border border-slate-100">Verbindungsfehler. Bitte prüfen, ob die Web-App als /exec URL aufgerufen wird.</div>`;
+                badge.className = "w-2.5 h-2.5 rounded-full bg-rose-500 inline-block animate-pulse";
+                badge.title = "Verbindungsfehler";
+                
+                if (allItems.length > 0) {
+                    renderUI();
+                } else {
+                    document.getElementById('shoppingListContainer').innerHTML = `<div class="text-center py-6 text-rose-500 text-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">Verbindungsfehler. Bitte Internet prüfen.</div>`;
+                }
             }
         }
 
         function renderUI() {
-            const container = document.getElementById('shoppingList');
+            const container = document.getElementById('shoppingListContainer');
             container.innerHTML = '';
 
             if (allItems.length === 0) {
-                container.innerHTML = `<div class="text-center py-10 text-slate-400 text-sm bg-white rounded-2xl border border-slate-100">Die Liste ist leer. Alles eingekauft! 🎉</div>`;
+                container.innerHTML = `<div class="text-center py-10 text-slate-400 text-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">Die Liste ist leer. Alles eingekauft! 🎉</div>`;
                 return;
             }
 
@@ -172,40 +237,40 @@
 
             for (const [marketName, items] of Object.entries(groups)) {
                 const mKey = marketName.toLowerCase().trim();
-                const style = marketDataMap[mKey] || { bg: '#94a3b8', text: '#ffffff', lightBg: '#f1f5f9' };
+                const style = marketDataMap[mKey] || { bg: '#94a3b8', text: '#ffffff', lightBg: getLightTintFromHex('#94a3b8') };
 
                 const groupDiv = document.createElement('div');
-                groupDiv.className = 'bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden mb-4';
+                groupDiv.className = 'bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 overflow-hidden mb-4';
                 
                 const headerHtml = `
-                    <div class="px-4 py-3 flex items-center justify-between border-b border-slate-200/60" style="background-color: ${style.lightBg};">
+                    <div class="px-4 py-3 flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800" style="background-color: ${style.lightBg};">
                         <div class="flex items-center gap-2.5">
                             <div class="px-3 py-1 rounded-lg font-extrabold text-xs shadow-xs tracking-wider" style="background-color: ${style.bg}; color: ${style.text};">
                                 ${escapeHtml(marketName)}
                             </div>
                         </div>
-                        <span class="text-xs font-semibold px-2.5 py-1 bg-white/90 rounded-full text-slate-600 shadow-2xs">
+                        <span class="text-xs font-semibold px-2.5 py-1 bg-white/90 dark:bg-slate-900/90 rounded-full text-slate-600 dark:text-slate-300 shadow-xs">
                             ${items.length} ${items.length === 1 ? 'Artikel' : 'Artikel'}
                         </span>
                     </div>
                 `;
 
                 const itemsList = document.createElement('div');
-                itemsList.className = 'divide-y divide-slate-100';
+                itemsList.className = 'divide-y divide-slate-100 dark:divide-slate-800';
 
                 items.forEach(item => {
                     const row = document.createElement('div');
-                    row.className = `p-3.5 flex items-center justify-between transition ${item.checked ? 'bg-slate-50/70 opacity-50' : 'hover:bg-slate-50/50'}`;
+                    row.className = `p-3.5 flex items-center justify-between transition ${item.checked ? 'bg-slate-50/70 dark:bg-slate-950/40 opacity-50' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/50'}`;
                     
                     row.innerHTML = `
                         <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onclick="toggleItem('${escapeHtml(item.id)}')">
-                            <input type="checkbox" ${item.checked ? 'checked' : ''} class="w-5 h-5 accent-indigo-600 rounded cursor-pointer">
+                            <input type="checkbox" ${item.checked ? 'checked' : ''} class="w-5 h-5 accent-blue-600 rounded cursor-pointer">
                             <div class="min-w-0">
-                                <p class="text-sm font-semibold truncate ${item.checked ? 'line-through text-slate-400' : 'text-slate-800'}">${escapeHtml(item.name)}</p>
-                                <span class="text-xs text-slate-400 font-medium">Menge: ${escapeHtml(item.quantity || '1')}</span>
+                                <p class="text-sm font-semibold truncate ${item.checked ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}">${escapeHtml(item.name)}</p>
+                                <span class="text-xs text-slate-400 dark:text-slate-500 font-medium">Menge: ${escapeHtml(item.quantity || '1')}</span>
                             </div>
                         </div>
-                        <button onclick="deleteItem('${escapeHtml(item.id)}')" class="text-slate-300 hover:text-rose-500 p-2 transition">
+                        <button onclick="deleteItem('${escapeHtml(item.id)}')" class="text-slate-300 hover:text-rose-500 p-2 transition" title="Löschen">
                             🗑️
                         </button>
                     `;
@@ -218,7 +283,7 @@
             }
         }
 
-        function addItem(e) {
+        function artikelHinzufuegen(e) {
             e.preventDefault();
             const nameInput = document.getElementById('itemName');
             const marketInput = document.getElementById('itemMarket');
@@ -238,12 +303,7 @@
             nameInput.focus();
             renderUI();
 
-            fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'add', ...newItem })
-            });
+            sendeAnBackend({ action: 'add', ...newItem });
         }
 
         function toggleItem(id) {
@@ -251,33 +311,54 @@
             if (item) {
                 item.checked = !item.checked;
                 renderUI();
-
-                fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'toggle', id: id })
-                });
+                sendeAnBackend({ action: 'toggle', id: id });
             }
         }
 
         function deleteItem(id) {
             allItems = allItems.filter(i => i.id !== id);
             renderUI();
+            sendeAnBackend({ action: 'delete', id: id });
+        }
 
+        function sendeAnBackend(payload) {
             fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'delete', id: id })
+                body: JSON.stringify(payload)
+            }).catch(error => {
+                console.error("Hintergrund-Synch-Fehler:", error);
             });
+        }
+
+        function sprachEingabeStarten() {
+            const TheSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!TheSpeechRecognition) return;
+
+            const recognition = new TheSpeechRecognition();
+            recognition.lang = 'de-DE';
+            recognition.interimResults = false;
+
+            const micButton = document.getElementById("micButton");
+            micButton.classList.add("bg-rose-500", "text-white", "animate-pulse");
+            micButton.textContent = "🔴 Höre zu...";
+
+            recognition.onresult = function(event) {
+                document.getElementById("itemName").value = event.results[0][0].transcript;
+            };
+
+            recognition.onend = function() {
+                micButton.classList.remove("bg-rose-500", "text-white", "animate-pulse");
+                micButton.textContent = "🎤 Einsprechen";
+            };
+
+            recognition.start();
         }
 
         function escapeHtml(str) {
             return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
-
-        loadData();
     </script>
 </body>
 </html>
