@@ -3,18 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Familien-Einkaufsliste</title>
+    <title>Einkaufsliste PWA</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen pb-20">
 
     <div class="max-w-md mx-auto p-4">
+        <!-- Header -->
         <header class="mb-6 mt-2 flex justify-between items-center">
             <h1 class="text-2xl font-black text-slate-900 tracking-tight">Einkaufsliste</h1>
-            <button onclick="loadItems()" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-full font-medium transition">Aktualisieren</button>
+            <button onclick="loadData()" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-full font-medium transition">Aktualisieren</button>
         </header>
 
-        <!-- Eingabebereich -->
+        <!-- Eingabeformular -->
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
             <form id="addForm" onsubmit="addItem(event)" class="space-y-3">
                 <div>
@@ -32,7 +33,7 @@
             </form>
         </div>
 
-        <!-- Artikelliste -->
+        <!-- Einkaufsliste -->
         <div id="shoppingList" class="space-y-4">
             <div class="text-center py-10 text-slate-400 text-sm">Lade Daten...</div>
         </div>
@@ -41,13 +42,13 @@
     <script>
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyraN51T7Olunfs830ukzQZZBxNcZJvgpg1T41sTHhnOy1k-2qtuLQJ31ezOQRBBui7/exec";
         
-        let allCurrentItems = [];
-        let marketDataMap = {}; // Speichert Farben pro Markt
+        let allItems = [];
+        let marketDataMap = {};
 
-        // Übersetzungstabelle für deutsche Farbnamen aus der Google-Tabelle
+        // Übersetzungstabelle für deutsche Farbnamen
         function resolveColor(colorName, type = 'bg') {
-            if (!colorName) return type === 'bg' ? '#e2e8f0' : '#1e293b';
-            const c = colorName.toLowerCase().trim();
+            if (!colorName) return type === 'bg' ? '#94a3b8' : (type === 'text' ? '#ffffff' : '#f1f5f9');
+            const c = String(colorName).toLowerCase().trim();
             
             const colorTable = {
                 'gelb':        { bg: '#facc15', text: '#1e3a8a', light: '#fef08a' },
@@ -64,25 +65,24 @@
             if (colorTable[c]) {
                 return colorTable[c][type];
             }
-            
-            // Falls direkt ein Hex-Code eingetragen wurde
-            return c;
+            return c; // Fallback, falls Hexcode eingetragen wurde
         }
 
-        async function loadItems() {
+        async function loadData() {
             try {
                 const response = await fetch(APPS_SCRIPT_URL);
                 const data = await response.json();
                 
-                // Märkte und Farben einlesen
+                // 1. Märkte verarbeiten
                 marketDataMap = {};
                 const marketSelect = document.getElementById('itemMarket');
-                let currentSelectVal = marketSelect.value;
+                const selectedVal = marketSelect.value;
                 marketSelect.innerHTML = '';
 
                 if (data.markets && data.markets.length > 0) {
                     data.markets.forEach(m => {
-                        marketDataMap[m.name.toLowerCase().trim()] = {
+                        const mKey = m.name.toLowerCase().trim();
+                        marketDataMap[mKey] = {
                             bg: resolveColor(m.bgColor, 'bg'),
                             text: resolveColor(m.textColor, 'text'),
                             light: resolveColor(m.bgColor, 'light')
@@ -99,13 +99,23 @@
                     opt.textContent = "Allgemein";
                     marketSelect.appendChild(opt);
                 }
-                if(currentSelectVal) marketSelect.value = currentSelectVal;
+                
+                if (selectedVal && Array.from(marketSelect.options).some(o => o.value === selectedVal)) {
+                    marketSelect.value = selectedVal;
+                }
 
-                allCurrentItems = data.items || [];
+                // 2. Artikel verarbeiten (Sicherstellen, dass Name existiert)
+                allItems = (data.items || []).map(item => ({
+                    id: item.id || 'id_' + Math.random(),
+                    name: item.name || item.title || item.artikel || "Unbenannter Artikel",
+                    market: item.market || "Allgemein",
+                    checked: !!item.checked
+                }));
+
                 renderUI();
-            } catch (error) {
-                console.error("Fehler beim Laden:", error);
-                document.getElementById('shoppingList').innerHTML = `<div class="text-center py-6 text-red-500 text-sm">Fehler beim Laden der Daten.</div>`;
+            } catch (err) {
+                console.error("Fehler beim Laden:", err);
+                document.getElementById('shoppingList').innerHTML = `<div class="text-center py-6 text-red-500 text-sm">Fehler beim Verbinden mit dem Server.</div>`;
             }
         }
 
@@ -113,17 +123,17 @@
             const container = document.getElementById('shoppingList');
             container.innerHTML = '';
 
-            if (allCurrentItems.length === 0) {
+            if (allItems.length === 0) {
                 container.innerHTML = `<div class="text-center py-10 text-slate-400 text-sm bg-white rounded-2xl border border-slate-100">Keine Artikel auf der Liste.</div>`;
                 return;
             }
 
             // Nach Märkten gruppieren
             const groups = {};
-            allCurrentItems.forEach(item => {
-                const market = item.market || "Allgemein";
-                if (!groups[market]) groups[market] = [];
-                groups[market].push(item);
+            allItems.forEach(item => {
+                const m = item.market || "Allgemein";
+                if (!groups[m]) groups[m] = [];
+                groups[m].push(item);
             });
 
             for (const [marketName, items] of Object.entries(groups)) {
@@ -133,14 +143,14 @@
                 const groupDiv = document.createElement('div');
                 groupDiv.className = 'bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4';
                 
-                // Header in heller Markt-Tönung
+                // Header mit Farb-Badge & hellem Hintergrund
                 const headerHtml = `
                     <div class="px-4 py-3 flex items-center justify-between border-b border-slate-100" style="background-color: ${mStyle.light};">
                         <div class="flex items-center gap-2.5">
                             <div class="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shadow-sm" style="background-color: ${mStyle.bg}; color: ${mStyle.text};">
                                 ${marketName.charAt(0).toUpperCase()}
                             </div>
-                            <h2 class="font-bold text-sm tracking-wide" style="color: #1e293b;">${escapeHtml(marketName)}</h2>
+                            <h2 class="font-bold text-sm tracking-wide text-slate-800">${escapeHtml(marketName)}</h2>
                         </div>
                         <span class="text-xs font-semibold px-2.5 py-1 bg-white/80 rounded-full text-slate-600 shadow-xs">${items.length}</span>
                     </div>
@@ -171,19 +181,19 @@
             }
         }
 
-        async function addItem(e) {
+        function addItem(e) {
             e.preventDefault();
             const nameInput = document.getElementById('itemName');
             const marketInput = document.getElementById('itemMarket');
             
             const newItem = {
-                id: 'temp_' + Date.now(),
+                id: 'id_' + Date.now(),
                 name: nameInput.value.trim(),
                 market: marketInput.value,
                 checked: false
             };
 
-            allCurrentItems.unshift(newItem);
+            allItems.unshift(newItem);
             nameInput.value = '';
             renderUI();
 
@@ -195,8 +205,8 @@
             });
         }
 
-        async function toggleItem(id) {
-            const item = allCurrentItems.find(i => i.id === id);
+        function toggleItem(id) {
+            const item = allItems.find(i => i.id === id);
             if (item) {
                 item.checked = !item.checked;
                 renderUI();
@@ -205,28 +215,29 @@
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'toggle', id: item.id })
+                    body: JSON.stringify({ action: 'toggle', id: id, name: item.name, market: item.market })
                 });
             }
         }
 
-        async function deleteItem(id) {
-            allCurrentItems = allCurrentItems.filter(i => i.id !== id);
+        function deleteItem(id) {
+            const item = allItems.find(i => i.id === id);
+            allItems = allItems.filter(i => i.id !== id);
             renderUI();
 
             fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'delete', id: id })
+                body: JSON.stringify({ action: 'delete', id: id, name: item ? item.name : '', market: item ? item.market : '' })
             });
         }
 
         function escapeHtml(str) {
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
-        loadItems();
+        loadData();
     </script>
 </body>
 </html>
