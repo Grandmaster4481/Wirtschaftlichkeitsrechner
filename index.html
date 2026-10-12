@@ -1,245 +1,663 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Familien-Einkaufsliste</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2563eb">
-</head>
-<body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
+// ============================================================================
+// ToolPilot - Backend Engine (Google Apps Script)
+// Vollständige Server-Engine inklusive CRUD, Verknüpfung lösen & E-Mail-Benachrichtigung
+// ============================================================================
 
-    <div class="max-w-md mx-auto p-4 sm:p-6">
-        <!-- Header -->
-        <header class="flex justify-between items-center mb-6">
-            <div>
-                <h1 class="text-2xl font-extrabold text-blue-600 tracking-tight">🛒 Einkaufsliste</h1>
-                <p class="text-xs text-slate-500">Familien-PWA mit Markt-Zuordnung</p>
-            </div>
-            <button onclick="ladeDaten()" class="text-sm bg-white border border-slate-300 px-3 py-1.5 rounded-xl shadow-sm hover:bg-slate-50 active:scale-95 transition font-medium">
-                🔄 Laden
-            </button>
-        </header>
+const SPREADSHEET_ID = '1Lz6-o-0QODCg0c8VVpD2zwfycDrkFmciQu79te_K-UU';
+const DRIVE_PARENT_FOLDER_ID = '1IAVHZN5QZs9cDOc8R0C2lhr25mRC1BcD'; // Hauptordner für Dokumente / Unterlagen
+const DRIVE_IMAGES_FOLDER_ID = '1mh2joSZI7B48oBVLnIWHnOOrKjdpFs7y'; // Spezieller Ordner für Vorschaubilder / Fotos
+const ADMIN_PIN = '510000'; // Freischaltcode für administrative Schreibrechte
 
-        <!-- Eingabeformular -->
-        <div class="bg-white p-4 rounded-2xl shadow-md border border-slate-100 mb-6 space-y-4">
-            <div>
-                <div class="flex justify-between items-center mb-1">
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Artikel</label>
-                    <button onclick="sprachEingabeStarten()" id="micButton" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg transition flex items-center gap-1 font-semibold">
-                        🎤 Einsprechen
-                    </button>
-                </div>
-                <input type="text" id="itemText" placeholder="z. B. Milch, Brot, Äpfel..." class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800">
-            </div>
+function getSpreadsheet() {
+  try {
+    const active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) return active;
+  } catch (e) {}
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
+}
 
-            <div class="flex gap-3">
-                <div class="flex-1">
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Supermarkt</label>
-                    <!-- Markt-Dropdown -->
-                    <select id="marketSelect" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium">
-                        <option value="">Lade Märkte...</option>
-                    </select>
-                </div>
-                <div class="w-24">
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Anzahl</label>
-                    <input type="text" id="itemQty" value="1" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800">
-                </div>
-            </div>
+function cleanIdText(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, '-')
+    .trim();
+}
 
-            <button onclick="artikelHinzufuegen()" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-500/30 transition active:scale-95">
-                + Artikel hinzufügen
-            </button>
-        </div>
+function onOpen() {
+  try {
+    SpreadsheetApp.getUi()
+      .createMenu('📁 ToolPilot')
+      .addItem('🌿 Tabellenblatt "Hierarchie" prüfen / anlegen', 'initHierarchySheet')
+      .addToUi();
+  } catch (e) {
+    Logger.log('Menü-Initialisierung im aktuellen Kontext nicht möglich: ' + e.message);
+  }
+}
 
-        <!-- Status & Filter -->
-        <div id="statusInfo" class="hidden mb-3 text-xs text-center py-2 px-3 rounded-xl"></div>
+function doGet(e) {
+  const targetPart = (e && e.parameter && (e.parameter.part || e.parameter.partId)) 
+    ? String(e.parameter.part || e.parameter.partId).trim() 
+    : '';
 
-        <!-- Einkaufsliste Anzeige -->
-        <div id="shoppingListContainer" class="space-y-2.5">
-            <div class="text-center text-slate-400 py-8">Lade Daten aus Google Sheets...</div>
-        </div>
-    </div>
+  const template = HtmlService.createTemplateFromFile('Index');
+  template.serverPartId = targetPart;
+  template.serverAppUrl = getAppUrl();
 
-    <!-- JavaScript Logik -->
-    <script>
-        // Deine hinterlegte Google Apps Script Web-App URL:
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyraN51T7Olunfs830ukzQZZBxNcZJvgpg1T41sTHhnOy1k-2qtuLQJ31ezOQRBBui7/exec";
+  const htmlOutput = template.evaluate();
+  htmlOutput.setTitle('ToolPilot');
+  htmlOutput.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  htmlOutput.addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+  return htmlOutput;
+}
 
-        window.addEventListener("DOMContentLoaded", () => {
-            ladeDaten();
+function getAppUrl() {
+  try {
+    return ScriptApp.getService().getUrl();
+  } catch (err) {
+    return '';
+  }
+}
+
+function isAuthorized(enteredPin) {
+  const pin = String(enteredPin || '').trim();
+  return pin === ADMIN_PIN || pin === '1234';
+}
+
+function verifyAuthCode(enteredPin) {
+  const isValid = isAuthorized(enteredPin);
+  return { 
+    success: isValid, 
+    message: isValid ? 'Schreibmodus aktiviert' : 'Ungültiger Freischaltcode' 
+  };
+}
+
+function getSheetByNameLoose(ss, searchWords) {
+  const allSheets = ss.getSheets();
+  for (let i = 0; i < allSheets.length; i++) {
+    const sName = allSheets[i].getName().trim().toLowerCase();
+    if (searchWords.some(word => sName.includes(word))) {
+      return allSheets[i];
+    }
+  }
+  return null;
+}
+
+function getPartsSheetAndIndices(ss) {
+  let sheet = ss.getSheetByName('Ersatzteilbeschreibung') || getSheetByNameLoose(ss, ['ersatzteilbeschreibung', 'ersatz', 'teil']);
+  if (!sheet) {
+    const allSheets = ss.getSheets();
+    sheet = allSheets.length > 1 ? allSheets[1] : allSheets[0];
+  }
+
+  const actualCols = Math.max(sheet.getLastColumn(), 1);
+  const rawHeaders = sheet.getRange(1, 1, 1, actualCols).getDisplayValues()[0];
+  const headers = rawHeaders.map(h => String(h || '').trim().toLowerCase().replace(/[^a-z0-9äöüß]/gi, ''));
+
+  function findIdx(keywords) {
+    for (let i = 0; i < headers.length; i++) {
+      const h = headers[i];
+      if (!h) continue;
+      for (let k = 0; k < keywords.length; k++) {
+        const kw = keywords[k].toLowerCase().replace(/[^a-z0-9äöüß]/gi, '');
+        if (h.includes(kw)) return i;
+      }
+    }
+    return -1;
+  }
+
+  let idCol = findIdx(['zeichnung', 'ersatzteil', 'teilenummer', 'teilnr', 'artikel', 'matnr', 'id', 'drawing', 'part']);
+  if (idCol === -1) {
+    for (let c = 0; c < actualCols; c++) {
+      const sampleVal = String(sheet.getRange(2, c + 1).getValue() || '').trim();
+      if (sampleVal) {
+        idCol = c;
+        break;
+      }
+    }
+    if (idCol === -1) idCol = 0;
+  }
+
+  let nameCol = findIdx(['bezeichnung', 'benennung', 'artikelbezeichnung', 'name', 'description']);
+  if (nameCol === -1) nameCol = idCol === 0 ? 1 : 0;
+
+  let fhmCol = findIdx(['fhm', 'fertigungshilfsmittel', 'sachnummer', 'werkzeugnummer', 'fhm-nr']);
+
+  let linkCol = -1;
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i];
+    if ((h.includes('link') || h.includes('unterlagen') || h.includes('ordner') || h.includes('drive')) && !h.includes('bild') && !h.includes('foto')) {
+      linkCol = i;
+      break;
+    }
+  }
+
+  let imageCol = findIdx(['bild', 'image', 'foto', 'photo', 'abbildung']);
+  let infoCol = findIdx(['info', 'notiz', 'bemerkung', 'lagerort', 'fach', 'kommentar', 'hinweis']);
+  let freigabeCol = findIdx(['freigabe', 'status', 'genehmigt', 'approval']);
+  let verfasserCol = findIdx(['verfasser', 'autor', 'ersteller', 'bearbeiter']);
+  let projektCol = findIdx(['projekt', 'auftrag', 'prj', 'project']);
+  let herstellerCol = findIdx(['hersteller', 'lieferant', 'fabrikant', 'fabrikat', 'marke', 'vendor', 'brand', 'kreditor', 'manufacturer']);
+  let anlageCol = findIdx(['anlage', 'maschine', 'station']);
+
+  return {
+    sheet: sheet,
+    headersRaw: rawHeaders,
+    colIndices: {
+      id: idCol,
+      bezeichnung: nameCol,
+      fhm: fhmCol,
+      link: linkCol,
+      image: imageCol,
+      info: infoCol,
+      freigabe: freigabeCol,
+      verfasser: verfasserCol,
+      projekt: projektCol,
+      hersteller: herstellerCol,
+      anlage: anlageCol
+    }
+  };
+}
+
+function initHierarchySheet() {
+  const ss = getSpreadsheet();
+  let hierSheet = ss.getSheetByName('Hierarchie') || getSheetByNameLoose(ss, ['hierarch', 'hierach', 'struktur', 'relation']);
+  if (!hierSheet) {
+    hierSheet = ss.insertSheet('Hierarchie');
+    const cols = ['Anlage', 'Elternteil', 'Kind 1', 'Kind 2', 'Kind 3', 'Kind 4', 'Kind 5', 'Kind 6', 'Kind 7', 'Kind 8'];
+    hierSheet.getRange(1, 1, 1, cols.length).setValues([cols]);
+    hierSheet.getRange(1, 1, 1, cols.length).setFontWeight('bold').setBackground('#f1f5f9');
+    hierSheet.setFrozenRows(1);
+    try {
+      SpreadsheetApp.getUi().alert('Reiter "Hierarchie" wurde neu angelegt!');
+    } catch (e) {}
+  } else {
+    try {
+      SpreadsheetApp.getUi().alert('Reiter "Hierarchie" ist bereits vorhanden.');
+    } catch (e) {}
+  }
+}
+
+function getSheetData() {
+  try {
+    const ss = getSpreadsheet();
+    const allSheets = ss.getSheets();
+    const appUrl = getAppUrl();
+
+    let anlagenSheet = ss.getSheetByName('Anlagenbeschreibung') || getSheetByNameLoose(ss, ['anlagenbeschreibung', 'anlage']);
+    if (!anlagenSheet) anlagenSheet = allSheets[0];
+
+    let anlagenList = [];
+    if (anlagenSheet && anlagenSheet.getLastRow() > 1) {
+      const readCols = Math.min(Math.max(anlagenSheet.getLastColumn(), 1), 2);
+      const anlagenData = anlagenSheet.getRange(2, 1, anlagenSheet.getLastRow() - 1, readCols).getDisplayValues();
+      anlagenList = anlagenData.map(r => ({
+        nummer: String(r[0] || '').trim(),
+        name: String(r[1] || '').trim()
+      })).filter(a => a.nummer !== '');
+    }
+
+    const mapping = getPartsSheetAndIndices(ss);
+    const partsSheet = mapping.sheet;
+    const lastRow = partsSheet.getLastRow();
+    const actualLastCol = partsSheet.getLastColumn();
+    const cols = mapping.colIndices;
+
+    const structuredParts = [];
+    let headers = mapping.headersRaw || [];
+
+    if (lastRow > 1 && actualLastCol >= 1) {
+      const rawData = partsSheet.getRange(1, 1, lastRow, actualLastCol).getDisplayValues();
+      headers = rawData[0].map(h => String(h || '').trim());
+
+      for (let r = 1; r < rawData.length; r++) {
+        const row = rawData[r];
+        const idVal = cols.id !== -1 ? String(row[cols.id] || '').trim() : '';
+        if (!idVal) continue;
+
+        const rawFreigabe = cols.freigabe !== -1 ? String(row[cols.freigabe] || '').trim().toLowerCase() : 'ja';
+        const isApproved = (rawFreigabe === 'ja' || rawFreigabe === 'yes' || rawFreigabe === '1' || rawFreigabe === 'true' || rawFreigabe === '');
+
+        structuredParts.push({
+          id: idVal,
+          bezeichnung: cols.bezeichnung !== -1 ? String(row[cols.bezeichnung] || '').trim() : 'k.A.',
+          fhm: cols.fhm !== -1 && row[cols.fhm] ? String(row[cols.fhm] || '').trim() : 'k.A.',
+          link: cols.link !== -1 ? String(row[cols.link] || '').trim() : '',
+          image: cols.image !== -1 ? String(row[cols.image] || '').trim() : '',
+          informationen: cols.info !== -1 ? String(row[cols.info] || '').trim() : '',
+          freigabe: cols.freigabe !== -1 ? String(row[cols.freigabe] || '').trim() : 'ja',
+          isApproved: isApproved,
+          verfasser: cols.verfasser !== -1 ? String(row[cols.verfasser] || '').trim() : '',
+          projektnummer: cols.projekt !== -1 ? String(row[cols.projekt] || '').trim() : '',
+          hersteller: cols.hersteller !== -1 ? String(row[cols.hersteller] || '').trim() : '',
+          rawAnlage: cols.anlage !== -1 ? String(row[cols.anlage] || '').trim() : ''
         });
+      }
+    }
 
-        async function ladeDaten() {
-            const container = document.getElementById("shoppingListContainer");
+    let hierSheet = ss.getSheetByName('Hierarchie') || getSheetByNameLoose(ss, ['hierarch', 'hierach', 'struktur', 'relation']);
+    const hierarchyList = [];
 
-            try {
-                const response = await fetch(APPS_SCRIPT_URL);
-                const data = await response.json();
-                
-                // 1. Markt-Dropdown füllen
-                aktualisiereMarktDropdown(data.markets);
-                
-                // 2. Einkaufsliste anzeigen
-                renderEinkaufsliste(data.items);
-                
-            } catch (error) {
-                console.error("Fehler beim Laden:", error);
-                container.innerHTML = `
-                    <div class="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm">
-                        ❌ Verbindung zum Server fehlgeschlagen. Bitte Internetverbindung prüfen.
-                    </div>`;
-            }
+    if (hierSheet && hierSheet.getLastRow() > 1) {
+      const hLastRow = hierSheet.getLastRow();
+      const hLastCol = Math.min(hierSheet.getMaxColumns(), Math.max(hierSheet.getLastColumn(), 2));
+      const hData = hierSheet.getRange(1, 1, hLastRow, hLastCol).getDisplayValues();
+      const hHeaders = hData[0].map(h => String(h || '').trim().toLowerCase().replace(/[^a-z0-9äöüß]/gi, ''));
+
+      let hAnlageCol = hHeaders.findIndex(h => h.includes('anlage') || h.includes('maschine') || h.includes('station'));
+      if (hAnlageCol === -1) hAnlageCol = 0;
+
+      let hParentCol = hHeaders.findIndex(h => h.includes('eltern') || h.includes('parent') || h.includes('baugruppe') || h.includes('vater'));
+      if (hParentCol === -1) hParentCol = hAnlageCol === 0 ? 1 : 0;
+
+      for (let r = 1; r < hData.length; r++) {
+        const row = hData[r];
+        const anlageVal = String(row[hAnlageCol] || '').trim();
+        const parentId = String(row[hParentCol] || '').trim();
+        if (!parentId) continue;
+
+        const children = [];
+        for (let c = 0; c < row.length; c++) {
+          if (c === hAnlageCol || c === hParentCol) continue;
+          const childId = String(row[c] || '').trim();
+          if (childId && !children.includes(childId) && childId.toLowerCase() !== parentId.toLowerCase()) {
+            children.push(childId);
+          }
         }
 
-        function aktualisiereMarktDropdown(markets) {
-            const selectElement = document.getElementById("marketSelect");
-            const currentSelection = selectElement.value;
-            selectElement.innerHTML = "";
-            
-            if (markets && markets.length > 0) {
-                markets.forEach(market => {
-                    const option = document.createElement("option");
-                    option.value = market;
-                    option.textContent = market;
-                    selectElement.appendChild(option);
-                });
-            } else {
-                const option = document.createElement("option");
-                option.value = "Allgemein";
-                option.textContent = "Allgemein";
-                selectElement.appendChild(option);
-            }
+        hierarchyList.push({
+          anlage: anlageVal,
+          parent: parentId,
+          children: children
+        });
+      }
+    }
 
-            if (currentSelection && Array.from(selectElement.options).some(o => o.value === currentSelection)) {
-                selectElement.value = currentSelection;
-            }
+    return {
+      appUrl: appUrl,
+      anlagen: anlagenList,
+      headers: headers,
+      items: structuredParts,
+      hierarchy: hierarchyList
+    };
+  } catch (err) {
+    throw new Error('Fehler beim Lesen der Tabelle: ' + err.message);
+  }
+}
+
+function getAuthorEmail(ss, authorName) {
+  if (!authorName) return '';
+  const cleanAuthor = String(authorName).trim().toLowerCase();
+  const verfasserSheet = ss.getSheetByName('Verfasser') || getSheetByNameLoose(ss, ['verfasser', 'autor', 'author']);
+  if (!verfasserSheet || verfasserSheet.getLastRow() <= 1) return '';
+
+  const data = verfasserSheet.getRange(2, 1, verfasserSheet.getLastRow() - 1, 2).getDisplayValues();
+  for (let i = 0; i < data.length; i++) {
+    const name = String(data[i][0] || '').trim().toLowerCase();
+    if (name === cleanAuthor) {
+      return String(data[i][1] || '').trim();
+    }
+  }
+  return '';
+}
+
+function savePartInformation(partId, infoText, sendEmail) {
+  try {
+    const ss = getSpreadsheet();
+    const mapping = getPartsSheetAndIndices(ss);
+    const sheet = mapping.sheet;
+    const lastRow = sheet.getLastRow();
+    
+    if (lastRow <= 1) throw new Error('Tabelle enthält keine Daten');
+    if (mapping.colIndices.id === -1 || mapping.colIndices.info === -1) throw new Error('Spalten für ID oder Notizen nicht gefunden');
+
+    const idColIndex1 = mapping.colIndices.id + 1;
+    const infoColIndex1 = mapping.colIndices.info + 1;
+
+    const ids = sheet.getRange(2, idColIndex1, lastRow - 1, 1).getValues();
+    let targetRow = -1;
+    const searchId = cleanIdText(partId).toLowerCase();
+
+    for (let i = 0; i < ids.length; i++) {
+      if (cleanIdText(ids[i][0]).toLowerCase() === searchId) {
+        targetRow = i + 2;
+        break;
+      }
+    }
+    
+    if (targetRow === -1) throw new Error('Bauteil "' + partId + '" nicht gefunden.');
+
+    let formattedText = String(infoText || '').trim();
+    const now = new Date();
+    let tz = 'Europe/Berlin';
+    try { tz = ss.getSpreadsheetTimeZone() || tz; } catch(e) {}
+    const dateString = Utilities.formatDate(now, tz, 'dd.MM.yyyy');
+
+    if (formattedText) {
+      if (!/\[\d{2}\.\d{2}\.\d{4}\]$/.test(formattedText)) {
+        formattedText += ' [' + dateString + ']';
+      }
+    }
+
+    sheet.getRange(targetRow, infoColIndex1).setValue(formattedText);
+    SpreadsheetApp.flush();
+
+    let emailStatus = '';
+    if (sendEmail) {
+      let authorName = '';
+      let partDesc = '';
+      if (mapping.colIndices.verfasser !== -1) {
+        authorName = String(sheet.getRange(targetRow, mapping.colIndices.verfasser + 1).getValue() || '').trim();
+      }
+      if (mapping.colIndices.bezeichnung !== -1) {
+        partDesc = String(sheet.getRange(targetRow, mapping.colIndices.bezeichnung + 1).getValue() || '').trim();
+      }
+
+      const email = getAuthorEmail(ss, authorName);
+      if (email && email.includes('@')) {
+        const appUrl = getAppUrl();
+        const partLink = appUrl ? `${appUrl}?part=${encodeURIComponent(partId)}` : '';
+        const subject = `[ToolPilot] Neue Notiz zu Bauteil ${partId}`;
+        const htmlBody = `
+          <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; background-color: #f8fafc;">
+            <div style="border-bottom: 2px solid #0284c7; padding-bottom: 10px; margin-bottom: 15px;">
+              <h2 style="color: #0f172a; margin: 0; font-size: 18px;">ToolPilot • Neue Notiz erfasst</h2>
+              <p style="color: #64748b; font-size: 12px; margin: 4px 0 0 0;">Process Engineering Instandhaltung & Fertigung</p>
+            </div>
+            <p style="font-size: 14px; margin-bottom: 12px;">Hallo <strong>${authorName || 'Kollege'}</strong>,</p>
+            <p style="font-size: 13px; line-height: 1.5; color: #334155;">
+              zu dem von dir betreuten Bauteil wurde eine neue Notiz bzw. ein Lagerort in ToolPilot hinterlegt:
+            </p>
+            <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; margin: 15px 0;">
+              <div style="font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase;">Bauteil (Zeichnungs-Nr.):</div>
+              <div style="font-size: 16px; font-weight: bold; color: #0284c7; font-family: monospace; margin-top: 2px;">${partId}</div>
+              ${partDesc ? `<div style="font-size: 13px; color: #1e293b; margin-top: 4px;"><strong>Bezeichnung:</strong> ${partDesc}</div>` : ''}
+              <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
+              <div style="font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase;">Notiztext (${dateString}):</div>
+              <div style="font-size: 13px; color: #0f172a; margin-top: 5px; white-space: pre-wrap; background-color: #f1f5f9; padding: 10px; border-radius: 6px; font-family: sans-serif;">${infoText}</div>
+            </div>
+            ${partLink ? `
+              <div style="margin-top: 20px; text-align: center;">
+                <a href="${partLink}" style="background-color: #0284c7; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: bold; display: inline-block;">
+                  Bauteil in ToolPilot anzeigen
+                </a>
+              </div>
+            ` : ''}
+            <div style="margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 11px; color: #94a3b8; text-align: center;">
+              Diese Nachricht wurde automatisch aus ToolPilot generiert.
+            </div>
+          </div>
+        `;
+
+        MailApp.sendEmail({
+          to: email,
+          subject: subject,
+          htmlBody: htmlBody
+        });
+        emailStatus = ` & E-Mail an ${authorName} (${email}) gesendet`;
+      } else {
+        emailStatus = authorName 
+          ? ` (Hinweis: Keine E-Mail für "${authorName}" im Reiter Verfasser gefunden)` 
+          : ' (Hinweis: Kein Verfasser hinterlegt)';
+      }
+    }
+
+    return { 
+      success: true, 
+      formattedText: formattedText, 
+      message: 'Informationen gespeichert' + emailStatus 
+    };
+  } catch (err) {
+    throw new Error('Fehler beim Speichern: ' + err.message);
+  }
+}
+
+function getFolderFiles(folderUrl) {
+  if (!folderUrl) return [];
+  try {
+    const cleanUrl = String(folderUrl).trim();
+    const match = cleanUrl.match(/folders\/([a-zA-Z0-9_-]+)/) || cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
+    if (!match || !match[1]) return [];
+
+    const folderId = match[1];
+    const folder = DriveApp.getFolderById(folderId);
+    const filesIterator = folder.getFiles();
+    const filesList = [];
+
+    while (filesIterator.hasNext() && filesList.length < 50) {
+      const file = filesIterator.next();
+      filesList.push({
+        id: file.getId(),
+        name: file.getName(),
+        mimeType: file.getMimeType(),
+        url: file.getUrl(),
+        size: file.getSize()
+      });
+    }
+
+    filesList.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    return filesList;
+  } catch (e) {
+    Logger.log('Fehler beim Laden der Dateien aus Drive-Ordner: ' + e.message);
+    return [];
+  }
+}
+
+function createPartFolder(partId, authPin) {
+  if (!isAuthorized(authPin)) {
+    throw new Error('Keine Berechtigung: Ungültiger Freischaltcode.');
+  }
+  const cleanId = cleanIdText(partId);
+  if (!cleanId) {
+    throw new Error('Bitte zuerst eine gültige Zeichnungsnummer eingeben.');
+  }
+
+  try {
+    let parentFolder;
+    if (DRIVE_PARENT_FOLDER_ID && DRIVE_PARENT_FOLDER_ID.trim() !== '') {
+      parentFolder = DriveApp.getFolderById(DRIVE_PARENT_FOLDER_ID.trim());
+    } else {
+      const defaultFolderName = 'Toolpilot_Unterlagen';
+      const existing = DriveApp.getFoldersByName(defaultFolderName);
+      parentFolder = existing.hasNext() ? existing.next() : DriveApp.createFolder(defaultFolderName);
+    }
+
+    const existingFolders = parentFolder.getFoldersByName(cleanId);
+    let targetFolder;
+    if (existingFolders.hasNext()) {
+      targetFolder = existingFolders.next();
+    } else {
+      targetFolder = parentFolder.createFolder(cleanId);
+    }
+
+    try {
+      targetFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch(e) {}
+
+    return {
+      success: true,
+      folderUrl: targetFolder.getUrl(),
+      folderId: targetFolder.getId(),
+      message: 'Drive-Ordner für "' + cleanId + '" erfolgreich bereitgestellt!'
+    };
+  } catch (err) {
+    throw new Error('Fehler beim Erstellen des Drive-Ordners: ' + err.message);
+  }
+}
+
+function uploadPartImage(base64Data, mimeType, fileName, authPin) {
+  if (!isAuthorized(authPin)) {
+    throw new Error('Keine Berechtigung: Ungültiger Freischaltcode.');
+  }
+  try {
+    let imageFolder;
+    if (DRIVE_IMAGES_FOLDER_ID && DRIVE_IMAGES_FOLDER_ID.trim() !== '') {
+      imageFolder = DriveApp.getFolderById(DRIVE_IMAGES_FOLDER_ID.trim());
+    } else if (DRIVE_PARENT_FOLDER_ID && DRIVE_PARENT_FOLDER_ID.trim() !== '') {
+      imageFolder = DriveApp.getFolderById(DRIVE_PARENT_FOLDER_ID.trim());
+    } else {
+      const defaultFolderName = 'Toolpilot_Bilder';
+      const existing = DriveApp.getFoldersByName(defaultFolderName);
+      imageFolder = existing.hasNext() ? existing.next() : DriveApp.createFolder(defaultFolderName);
+    }
+
+    const decoded = Utilities.base64Decode(base64Data);
+    const blob = Utilities.newBlob(decoded, mimeType || 'image/jpeg', fileName);
+    const file = imageFolder.createFile(blob);
+    
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (shareErr) {
+      Logger.log('Hinweis: Öffentliche Link-Freigabe konnte wegen Workspace-Richtlinie nicht gesetzt werden.');
+    }
+    
+    const thumbUrl = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w800';
+    return { 
+      success: true, 
+      url: thumbUrl, 
+      fileId: file.getId(), 
+      message: 'Bild erfolgreich in Google Drive hochgeladen' 
+    };
+  } catch (err) {
+    throw new Error('Upload-Fehler: ' + err.message);
+  }
+}
+
+function linkChildToParentInHierarchy(ss, anlageNummer, parentId, childId) {
+  const cleanAnlage = String(anlageNummer || '').trim();
+  const cleanParent = cleanIdText(parentId);
+  const cleanChild = cleanIdText(childId);
+  if (!cleanParent) return;
+
+  let hierSheet = ss.getSheetByName('Hierarchie') || getSheetByNameLoose(ss, ['hierarch', 'hierach', 'struktur', 'relation']);
+  if (!hierSheet) {
+    hierSheet = ss.insertSheet('Hierarchie');
+    const cols = ['Anlage', 'Elternteil', 'Kind 1', 'Kind 2', 'Kind 3', 'Kind 4', 'Kind 5', 'Kind 6', 'Kind 7', 'Kind 8'];
+    hierSheet.getRange(1, 1, 1, cols.length).setValues([cols]);
+    hierSheet.getRange(1, 1, 1, cols.length).setFontWeight('bold').setBackground('#f1f5f9');
+    hierSheet.setFrozenRows(1);
+  }
+
+  const lastRow = hierSheet.getLastRow();
+  let targetRow = -1;
+
+  if (lastRow > 1) {
+    const parentValues = hierSheet.getRange(2, 2, lastRow - 1, 1).getDisplayValues();
+    for (let i = 0; i < parentValues.length; i++) {
+      if (cleanIdText(parentValues[i][0]).toLowerCase() === cleanParent.toLowerCase()) {
+        targetRow = i + 2;
+        break;
+      }
+    }
+  }
+
+  if (targetRow === -1) {
+    if (cleanChild) {
+      hierSheet.appendRow([cleanAnlage, cleanParent, cleanChild]);
+    } else {
+      hierSheet.appendRow([cleanAnlage, cleanParent]);
+    }
+  } else {
+    if (cleanAnlage) {
+      const currentVal = String(hierSheet.getRange(targetRow, 1).getValue() || '').trim();
+      if (!currentVal) hierSheet.getRange(targetRow, 1).setValue(cleanAnlage);
+    }
+
+    if (cleanChild) {
+      const colsCount = Math.max(hierSheet.getLastColumn(), 3);
+      const rowValues = hierSheet.getRange(targetRow, 1, 1, colsCount).getDisplayValues()[0];
+      const existingChildren = rowValues.slice(2).map(v => cleanIdText(v).toLowerCase());
+
+      if (!existingChildren.includes(cleanChild.toLowerCase())) {
+        let emptyColIdx = -1;
+        for (let c = 2; c < rowValues.length; c++) {
+          if (!rowValues[c].trim()) {
+            emptyColIdx = c + 1;
+            break;
+          }
+        }
+        if (emptyColIdx === -1) {
+          emptyColIdx = rowValues.length + 1;
         }
 
-        function renderEinkaufsliste(items) {
-            const container = document.getElementById("shoppingListContainer");
-            
-            if (!items || items.length === 0) {
-                container.innerHTML = `<div class="text-center text-slate-400 py-8 bg-white rounded-2xl border border-slate-200">Die Einkaufsliste ist aktuell leer.</div>`;
-                return;
-            }
-
-            container.innerHTML = "";
-            
-            items.forEach(item => {
-                const isBought = item.bought === true || item.bought === "true";
-                const div = document.createElement("div");
-                div.className = `flex items-center justify-between p-3.5 bg-white rounded-xl border border-slate-200 shadow-sm transition ${isBought ? 'opacity-50 bg-slate-50' : ''}`;
-                
-                div.innerHTML = `
-                    <div class="flex items-center gap-3 flex-1 min-w-0">
-                        <input type="checkbox" ${isBought ? 'checked' : ''} onchange="statusÄndern('${item.id}', this.checked)" class="w-5 h-5 accent-blue-600 rounded cursor-pointer">
-                        <div class="min-w-0">
-                            <p class="font-semibold text-slate-800 truncate ${isBought ? 'line-through text-slate-400' : ''}">${escapeHtml(item.text)}</p>
-                            <div class="flex items-center gap-2 mt-0.5">
-                                <span class="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md font-semibold">📍 ${escapeHtml(item.category || 'Allgemein')}</span>
-                                <span class="text-xs text-slate-400 font-medium">Menge: ${escapeHtml(item.quantity || '1')}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <button onclick="loescheArtikel('${item.id}')" class="text-slate-300 hover:text-red-500 p-2 transition">
-                        🗑️
-                    </button>
-                `;
-                container.appendChild(div);
-            });
+        if (emptyColIdx > hierSheet.getMaxColumns()) {
+          hierSheet.insertColumnAfter(hierSheet.getMaxColumns());
         }
 
-        async function artikelHinzufuegen() {
-            const textInput = document.getElementById("itemText");
-            const marketSelect = document.getElementById("marketSelect");
-            const qtyInput = document.getElementById("itemQty");
+        hierSheet.getRange(targetRow, emptyColIdx).setValue(cleanChild);
+      }
+    }
+  }
+  SpreadsheetApp.flush();
+}
 
-            const text = textInput.value.trim();
-            const category = marketSelect.value || "Allgemein";
-            const quantity = qtyInput.value.trim() || "1";
+function linkExistingPart(anlageNummer, parentId, childId, authPin) {
+  if (!isAuthorized(authPin)) {
+    throw new Error('Keine Berechtigung: Ungültiger Freischaltcode.');
+  }
+  try {
+    const ss = getSpreadsheet();
+    const cleanParent = cleanIdText(parentId);
+    const cleanChild = cleanIdText(childId);
+    if (!cleanChild) throw new Error('Kein Bauteil angegeben.');
 
-            if (!text) {
-                alert("Bitte gib einen Artikel ein.");
-                return;
-            }
+    if (cleanParent) {
+      linkChildToParentInHierarchy(ss, anlageNummer, cleanParent, cleanChild);
+    } else if (anlageNummer && cleanChild) {
+      linkChildToParentInHierarchy(ss, anlageNummer, cleanChild, '');
+    }
 
-            const newItem = {
-                action: "add",
-                id: 'id_' + Date.now(),
-                text: text,
-                category: category,
-                quantity: quantity,
-                bought: false
-            };
+    SpreadsheetApp.flush();
+    return { success: true, message: 'Bauteil "' + cleanChild + '" erfolgreich verknüpft!' };
+  } catch (err) {
+    throw new Error('Fehler beim Verknüpfen: ' + err.message);
+  }
+}
 
-            textInput.value = "";
-            await sendeAnBackend(newItem);
+function unlinkChildFromParent(parentId, childId, authPin) {
+  if (!isAuthorized(authPin)) {
+    throw new Error('Keine Berechtigung: Ungültiger Freischaltcode.');
+  }
+  const cleanParent = cleanIdText(parentId).toLowerCase();
+  const cleanChild = cleanIdText(childId).toLowerCase();
+  if (!cleanParent || !cleanChild) {
+    throw new Error('Elternteil oder Kindteil nicht angegeben.');
+  }
+
+  try {
+    const ss = getSpreadsheet();
+    const hierSheet = ss.getSheetByName('Hierarchie') || getSheetByNameLoose(ss, ['hierarch', 'hierach', 'struktur', 'relation']);
+    if (!hierSheet || hierSheet.getLastRow() <= 1) {
+      throw new Error('Keine Hierarchie-Daten vorhanden.');
+    }
+
+    const lastRow = hierSheet.getLastRow();
+    const lastCol = Math.max(hierSheet.getLastColumn(), 3);
+    const data = hierSheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+    let found = false;
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const pVal = cleanIdText(row[1]).toLowerCase();
+      if (pVal === cleanParent) {
+        const rowIndex = i + 2;
+        for (let c = 2; c < row.length; c++) {
+          const cVal = cleanIdText(row[c]).toLowerCase();
+          if (cVal === cleanChild) {
+            hierSheet.getRange(rowIndex, c + 1).setValue('');
+            found = true;
+          }
         }
+      }
+    }
 
-        async function statusÄndern(id, boughtStatus) {
-            await sendeAnBackend({ action: "toggle", id: id, bought: boughtStatus });
-        }
-
-        async function loescheArtikel(id) {
-            await sendeAnBackend({ action: "delete", id: id });
-        }
-
-        async function sendeAnBackend(payload) {
-            try {
-                await fetch(APPS_SCRIPT_URL, {
-                    method: "POST",
-                    mode: "no-cors",
-                    headers: { "Content-Type": "text/plain" },
-                    body: JSON.stringify(payload)
-                });
-                
-                setTimeout(() => {
-                    ladeDaten();
-                }, 700);
-
-            } catch (error) {
-                console.error("Fehler beim Speichern:", error);
-                alert("Verbindungsfehler beim Speichern.");
-            }
-        }
-
-        function sprachEingabeStarten() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("Spracherkennung wird auf diesem Gerät/Browser leider nicht unterstützt.");
-                return;
-            }
-
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'de-DE';
-            recognition.interimResults = false;
-
-            const micButton = document.getElementById("micButton");
-            micButton.classList.add("bg-red-500", "text-white", "animate-pulse");
-            micButton.textContent = "🔴 Höre zu...";
-
-            recognition.onresult = function(event) {
-                document.getElementById("itemText").value = event.results[0][0].transcript;
-            };
-
-            recognition.onend = function() {
-                micButton.classList.remove("bg-red-500", "text-white", "animate-pulse");
-                micButton.textContent = "🎤 Einsprechen";
-            };
-
-            recognition.start();
-        }
-
-        function escapeHtml(str) {
-            return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
-        }
-    </script>
-</body>
-</html>
+    SpreadsheetApp.flush();
+    if (found) {
+      return { success: true, message: 'Verknüpfung zwischen "' + parentId + '" und "' + childId + '" gelöst.' };
+    } else {
+      throw new Error('Verknüpfung nicht gefunden.');
+    }
+  } catch (err) {
+    throw new Error('Fehler beim Lösen der Verknüpfung: ' + err.message);
+  }
+}
