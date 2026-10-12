@@ -15,7 +15,7 @@
         <header class="flex justify-between items-center mb-6">
             <div>
                 <h1 class="text-2xl font-extrabold text-blue-600 tracking-tight">🛒 Einkaufsliste</h1>
-                <p class="text-xs text-slate-500">Nach Märkten gebündelt &amp; mit Logos</p>
+                <p class="text-xs text-slate-500">Dynamische Markt-Farben &amp; PWA</p>
             </div>
             <div class="flex items-center gap-2">
                 <span id="connectionBadge" class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" title="Verbunden"></span>
@@ -39,7 +39,6 @@
             <div class="flex gap-3">
                 <div class="flex-1">
                     <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Supermarkt</label>
-                    <!-- Markt-Dropdown -->
                     <select id="marketSelect" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium">
                         <option value="">Lade Märkte...</option>
                     </select>
@@ -50,31 +49,27 @@
                 </div>
             </div>
 
-            <button id="submitBtn" onclick="artikelHinzufuegen()" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-500/30 transition active:scale-95 flex items-center justify-center gap-2">
+            <button onclick="artikelHinzufuegen()" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-500/30 transition active:scale-95 flex items-center justify-center gap-2">
                 <span>+ Artikel hinzufügen</span>
             </button>
         </div>
 
         <div id="statusInfo" class="hidden mb-3 text-xs text-center py-2 px-3 rounded-xl"></div>
 
-        <!-- Einkaufsliste Anzeige (Gebündelt nach Markt mit Logos) -->
         <div id="shoppingListContainer" class="space-y-4">
             <div class="text-center text-slate-400 py-8 bg-white rounded-2xl border border-slate-200 shadow-sm">Lade Daten aus Google Sheets...</div>
         </div>
     </div>
 
     <script>
-        // Deine hinterlegte Google Apps Script Web-App URL:
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyraN51T7Olunfs830ukzQZZBxNcZJvgpg1T41sTHhnOy1k-2qtuLQJ31ezOQRBBui7/exec";
 
-        // Lokaler State für sofortiges UI-Feedback (Optimistic UI)
         let globalItems = [];
         let globalMarkets = [];
 
         window.addEventListener("DOMContentLoaded", () => {
             ladeDaten();
             
-            // Enter-Taste im Textfeld zum Abschicken nutzen
             document.getElementById("itemText").addEventListener("keypress", (e) => {
                 if (e.key === "Enter") artikelHinzufuegen();
             });
@@ -97,10 +92,7 @@
                 globalMarkets = data.markets || [];
                 globalItems = data.items || [];
 
-                // 1. Markt-Dropdown füllen
                 aktualisiereMarktDropdown(globalMarkets);
-                
-                // 2. Einkaufsliste nach Markt gruppiert mit Logos anzeigen
                 renderEinkaufsliste(globalItems, globalMarkets);
                 
             } catch (error) {
@@ -108,7 +100,6 @@
                 badge.className = "w-2.5 h-2.5 rounded-full bg-rose-500 inline-block animate-pulse";
                 badge.title = "Verbindungshinweis / Offline";
                 
-                // Falls bereits lokale Daten vorhanden sind, trotzdem anzeigen
                 if (globalItems.length > 0) {
                     renderEinkaufsliste(globalItems, globalMarkets);
                 } else {
@@ -120,6 +111,43 @@
             }
         }
 
+        function getMarketConfig(marketName) {
+            const nameToFind = String(marketName || "Allgemein").toLowerCase().trim();
+            if (globalMarkets && globalMarkets.length > 0) {
+                const found = globalMarkets.find(m => {
+                    const mName = typeof m === 'object' ? m.name : m;
+                    return String(mName).toLowerCase().trim() === nameToFind;
+                });
+                if (found && typeof found === 'object') {
+                    return {
+                        name: found.name || marketName,
+                        bgColor: found.bgColor || '#e2e8f0',
+                        textColor: found.textColor || '#1e293b'
+                    };
+                }
+            }
+            
+            // Fallbacks
+            if (nameToFind.includes('rewe')) return { name: marketName, bgColor: '#dc2626', textColor: '#ffffff' };
+            if (nameToFind.includes('aldi')) return { name: marketName, bgColor: '#2563eb', textColor: '#ffffff' };
+            if (nameToFind.includes('edeka')) return { name: marketName, bgColor: '#facc15', textColor: '#1e3a8a' };
+            if (nameToFind.includes('dm')) return { name: marketName, bgColor: '#9333ea', textColor: '#ffffff' };
+            if (nameToFind.includes('lidl')) return { name: marketName, bgColor: '#1d4ed8', textColor: '#facc15' };
+            
+            return { name: marketName, bgColor: '#e2e8f0', textColor: '#1e293b' };
+        }
+
+        function hexToRgba(hex, opacity) {
+            let c = hex.replace('#', '');
+            if (c.length === 3) c = c.split('').map(x => x + x).join('');
+            if (c.length !== 6) return 'rgba(241, 245, 249, 0.8)';
+            const num = parseInt(c, 16);
+            const r = (num >> 16) & 255;
+            const g = (num >> 8) & 255;
+            const b = num & 255;
+            return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+        }
+
         function aktualisiereMarktDropdown(markets) {
             const selectElement = document.getElementById("marketSelect");
             const currentSelection = selectElement.value;
@@ -127,9 +155,10 @@
             
             if (markets && markets.length > 0) {
                 markets.forEach(market => {
+                    const mName = typeof market === 'object' ? market.name : market;
                     const option = document.createElement("option");
-                    option.value = market;
-                    option.textContent = market;
+                    option.value = mName;
+                    option.textContent = mName;
                     selectElement.appendChild(option);
                 });
             } else {
@@ -142,28 +171,6 @@
             if (currentSelection && Array.from(selectElement.options).some(o => o.value === currentSelection)) {
                 selectElement.value = currentSelection;
             }
-        }
-
-        function getMarketBadge(marketName) {
-            const name = marketName.toLowerCase().trim();
-            
-            if (name.includes('rewe')) {
-                return `<div class="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center font-black text-xs shadow-sm">R</div>`;
-            } else if (name.includes('aldi')) {
-                return `<div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shadow-sm">A</div>`;
-            } else if (name.includes('edeka')) {
-                return `<div class="w-7 h-7 rounded-lg bg-yellow-400 text-blue-900 flex items-center justify-center font-black text-xs shadow-sm">E</div>`;
-            } else if (name.includes('dm')) {
-                return `<div class="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center font-black text-xs shadow-sm">dm</div>`;
-            } else if (name.includes('lidl')) {
-                return `<div class="w-7 h-7 rounded-lg bg-blue-700 text-yellow-400 flex items-center justify-center font-black text-xs shadow-sm">L</div>`;
-            } else if (name.includes('netto')) {
-                return `<div class="w-7 h-7 rounded-lg bg-yellow-500 text-red-600 flex items-center justify-center font-black text-xs shadow-sm">N</div>`;
-            } else if (name.includes('kaufland')) {
-                return `<div class="w-7 h-7 rounded-lg bg-red-700 text-white flex items-center justify-center font-black text-xs shadow-sm">K</div>`;
-            }
-            
-            return `<div class="w-7 h-7 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center text-xs shadow-sm">🛒</div>`;
         }
 
         function renderEinkaufsliste(items, markets) {
@@ -183,34 +190,39 @@
                 grouped[cat].push(item);
             });
 
-            let sortedKeys = Object.keys(grouped);
+            let marketNames = [];
             if (markets && markets.length > 0) {
-                sortedKeys.sort((a, b) => {
-                    let indexA = markets.indexOf(a);
-                    let indexB = markets.indexOf(b);
-                    if (indexA === -1) indexA = 999;
-                    if (indexB === -1) indexB = 999;
-                    return indexA - indexB;
-                });
+                marketNames = markets.map(m => typeof m === 'object' ? m.name : m);
+            } else {
+                marketNames = Object.keys(grouped);
             }
+
+            let sortedKeys = Object.keys(grouped).sort((a, b) => {
+                let indexA = marketNames.indexOf(a);
+                let indexB = marketNames.indexOf(b);
+                if (indexA === -1) indexA = 999;
+                if (indexB === -1) indexB = 999;
+                return indexA - indexB;
+            });
 
             container.innerHTML = "";
 
-            sortedKeys.forEach(market => {
-                const marketItems = grouped[market];
+            sortedKeys.forEach(marketKey => {
+                const marketItems = grouped[marketKey];
+                const config = getMarketConfig(marketKey);
+                const softHeaderBg = hexToRgba(config.bgColor, 0.16);
                 
                 const sectionDiv = document.createElement("div");
                 sectionDiv.className = "bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-3";
                 
                 let headerHtml = `
-                    <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
-                        <div class="flex items-center gap-2.5">
-                            ${getMarketBadge(market)}
-                            <span class="font-bold text-slate-700 text-sm">
-                                ${escapeHtml(market)}
-                            </span>
+                    <div style="background-color: ${softHeaderBg};" class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div style="background-color: ${config.bgColor}; color: ${config.textColor};" class="px-3 py-1 rounded-lg font-extrabold text-xs shadow-sm tracking-wide">
+                                ${escapeHtml(config.name)}
+                            </div>
                         </div>
-                        <span class="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">
+                        <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-white/80 text-slate-700 shadow-xs">
                             ${marketItems.length} ${marketItems.length === 1 ? 'Artikel' : 'Artikel'}
                         </span>
                     </div>
@@ -252,9 +264,7 @@
             const category = marketSelect.value || "Allgemein";
             const quantity = qtyInput.value.trim() || "1";
 
-            if (!text) {
-                return;
-            }
+            if (!text) return;
 
             const newItem = {
                 action: "add",
@@ -265,41 +275,30 @@
                 bought: false
             };
 
-            // Feld sofort leeren
             textInput.value = "";
             textInput.focus();
 
-            // 1. Sofort lokal hinzufügen und rendern (0ms Verzögerung)
             globalItems.unshift(newItem);
             renderEinkaufsliste(globalItems, globalMarkets);
-
-            // 2. Im Hintergrund an Backend senden (Fire-and-Forget, blockiert nicht)
             sendeAnBackend(newItem);
         }
 
         function statusÄndern(id, boughtStatus) {
-            // 1. Lokalen Zustand sofort anpassen
             const item = globalItems.find(i => String(i.id) === String(id));
             if (item) {
                 item.bought = boughtStatus;
                 renderEinkaufsliste(globalItems, globalMarkets);
             }
-
-            // 2. Im Hintergrund an Backend senden
             sendeAnBackend({ action: "toggle", id: id, bought: boughtStatus });
         }
 
         function loescheArtikel(id) {
-            // 1. Sofort lokal entfernen
             globalItems = globalItems.filter(i => String(i.id) !== String(id));
             renderEinkaufsliste(globalItems, globalMarkets);
-
-            // 2. Im Hintergrund an Backend senden
             sendeAnBackend({ action: "delete", id: id });
         }
 
         function sendeAnBackend(payload) {
-            // Fire-and-Forget: Kein await, kein Warten auf Serverantwort
             fetch(APPS_SCRIPT_URL, {
                 method: "POST",
                 mode: "no-cors",
@@ -312,9 +311,7 @@
 
         function sprachEingabeStarten() {
             const TheSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!TheSpeechRecognition) {
-                return;
-            }
+            if (!TheSpeechRecognition) return;
 
             const recognition = new TheSpeechRecognition();
             recognition.lang = 'de-DE';
