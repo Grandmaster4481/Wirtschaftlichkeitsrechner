@@ -4,48 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Familien-Einkaufsliste</title>
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS mit Dark Mode Konfiguration -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
+<body class="bg-slate-100 dark:bg-slate-900 min-h-screen text-slate-800 dark:text-slate-100 font-sans transition-colors duration-200">
 
     <div class="max-w-md mx-auto p-4 sm:p-6">
         <!-- Header -->
         <header class="flex justify-between items-center mb-6">
             <div>
-                <h1 class="text-2xl font-extrabold text-blue-600 tracking-tight">🛒 Einkaufsliste</h1>
-                <p class="text-xs text-slate-500">Familien-PWA mit Markt-Zuordnung</p>
+                <h1 class="text-2xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight">🛒 Einkaufsliste</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Familien-PWA mit Markt-Zuordnung</p>
             </div>
-            <button onclick="ladeDaten()" class="text-sm bg-white border border-slate-300 px-3 py-1.5 rounded-xl shadow-sm hover:bg-slate-50 active:scale-95 transition font-medium">
-                🔄 Laden
-            </button>
+            <div class="flex items-center gap-2">
+                <!-- Theme Umschalter -->
+                <button onclick="toggleTheme()" id="themeToggleBtn" class="text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition font-medium" title="Design umschalten">
+                    🌙
+                </button>
+                <button onclick="ladeDaten()" class="text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-1.5 rounded-xl shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition font-medium">
+                    🔄 Laden
+                </button>
+            </div>
         </header>
 
         <!-- Eingabeformular -->
-        <div class="bg-white p-4 rounded-2xl shadow-md border border-slate-100 mb-6 space-y-4">
+        <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-md border border-slate-100 dark:border-slate-700 mb-6 space-y-4 transition-colors">
             <div>
                 <div class="flex justify-between items-center mb-1">
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Artikel</label>
-                    <button onclick="sprachEingabeStarten()" id="micButton" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg transition flex items-center gap-1 font-semibold">
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Artikel</label>
+                    <button onclick="sprachEingabeStarten()" id="micButton" type="button" class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 px-2.5 py-1 rounded-lg transition flex items-center gap-1 font-semibold">
                         🎤 Einsprechen
                     </button>
                 </div>
-                <input type="text" id="itemText" placeholder="z. B. Milch, Brot, Äpfel..." class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800">
+                <input type="text" id="itemText" placeholder="z. B. Milch, Brot, Äpfel..." class="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100">
             </div>
 
             <div class="flex gap-3">
                 <div class="flex-1">
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Supermarkt</label>
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Supermarkt</label>
                     <!-- Markt-Dropdown -->
-                    <select id="marketSelect" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium">
+                    <select id="marketSelect" class="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 font-medium">
                         <option value="">Lade Märkte...</option>
                     </select>
                 </div>
                 <div class="w-24">
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Anzahl</label>
-                    <input type="text" id="itemQty" value="1" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800">
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Anzahl</label>
+                    <input type="text" id="itemQty" value="1" class="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100">
                 </div>
             </div>
 
@@ -53,9 +64,6 @@
                 + Artikel hinzufügen
             </button>
         </div>
-
-        <!-- Status & Filter -->
-        <div id="statusInfo" class="hidden mb-3 text-xs text-center py-2 px-3 rounded-xl"></div>
 
         <!-- Einkaufsliste Anzeige -->
         <div id="shoppingListContainer" class="space-y-2.5">
@@ -65,12 +73,38 @@
 
     <!-- JavaScript Logik -->
     <script>
-        // Deine hinterlegte Google Apps Script Web-App URL:
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyraN51T7Olunfs830ukzQZZBxNcZJvgpg1T41sTHhnOy1k-2qtuLQJ31ezOQRBBui7/exec";
 
         window.addEventListener("DOMContentLoaded", () => {
+            initTheme();
             ladeDaten();
         });
+
+        // Theme-Logik
+        function initTheme() {
+            const savedTheme = localStorage.getItem("theme");
+            if (savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+                document.documentElement.classList.add("dark");
+                document.getElementById("themeToggleBtn").textContent = "☀️";
+            } else {
+                document.documentElement.classList.remove("dark");
+                document.getElementById("themeToggleBtn").textContent = "🌙";
+            }
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const btn = document.getElementById("themeToggleBtn");
+            if (html.classList.contains("dark")) {
+                html.classList.remove("dark");
+                localStorage.setItem("theme", "light");
+                btn.textContent = "🌙";
+            } else {
+                html.classList.add("dark");
+                localStorage.setItem("theme", "dark");
+                btn.textContent = "☀️";
+            }
+        }
 
         async function ladeDaten() {
             const container = document.getElementById("shoppingListContainer");
@@ -79,16 +113,13 @@
                 const response = await fetch(APPS_SCRIPT_URL);
                 const data = await response.json();
                 
-                // 1. Markt-Dropdown füllen
                 aktualisiereMarktDropdown(data.markets);
-                
-                // 2. Einkaufsliste anzeigen
                 renderEinkaufsliste(data.items);
                 
             } catch (error) {
                 console.error("Fehler beim Laden:", error);
                 container.innerHTML = `
-                    <div class="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm">
+                    <div class="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 p-4 rounded-xl text-sm">
                         ❌ Verbindung zum Server fehlgeschlagen. Bitte Internetverbindung prüfen.
                     </div>`;
             }
@@ -97,7 +128,7 @@
         function aktualisiereMarktDropdown(markets) {
             const selectElement = document.getElementById("marketSelect");
             const currentSelection = selectElement.value;
-            selectElement.innerHTML = "";
+            selectElement.options.length = 0;
             
             if (markets && markets.length > 0) {
                 markets.forEach(market => {
@@ -122,7 +153,7 @@
             const container = document.getElementById("shoppingListContainer");
             
             if (!items || items.length === 0) {
-                container.innerHTML = `<div class="text-center text-slate-400 py-8 bg-white rounded-2xl border border-slate-200">Die Einkaufsliste ist aktuell leer.</div>`;
+                container.innerHTML = `<div class="text-center text-slate-400 py-8 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">Die Einkaufsliste ist aktuell leer.</div>`;
                 return;
             }
 
@@ -131,20 +162,20 @@
             items.forEach(item => {
                 const isBought = item.bought === true || item.bought === "true";
                 const div = document.createElement("div");
-                div.className = `flex items-center justify-between p-3.5 bg-white rounded-xl border border-slate-200 shadow-sm transition ${isBought ? 'opacity-50 bg-slate-50' : ''}`;
+                div.className = `flex items-center justify-between p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition ${isBought ? 'opacity-50 bg-slate-50 dark:bg-slate-800/50' : ''}`;
                 
                 div.innerHTML = `
                     <div class="flex items-center gap-3 flex-1 min-w-0">
                         <input type="checkbox" ${isBought ? 'checked' : ''} onchange="statusÄndern('${item.id}', this.checked)" class="w-5 h-5 accent-blue-600 rounded cursor-pointer">
                         <div class="min-w-0">
-                            <p class="font-semibold text-slate-800 truncate ${isBought ? 'line-through text-slate-400' : ''}">${escapeHtml(item.text)}</p>
+                            <p class="font-semibold text-slate-800 dark:text-slate-100 truncate ${isBought ? 'line-through text-slate-400 dark:text-slate-500' : ''}">${escapeHtml(item.text)}</p>
                             <div class="flex items-center gap-2 mt-0.5">
-                                <span class="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md font-semibold">📍 ${escapeHtml(item.category || 'Allgemein')}</span>
-                                <span class="text-xs text-slate-400 font-medium">Menge: ${escapeHtml(item.quantity || '1')}</span>
+                                <span class="text-[11px] bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-md font-semibold">📍 ${escapeHtml(item.category || 'Allgemein')}</span>
+                                <span class="text-xs text-slate-400 dark:text-slate-500 font-medium">Menge: ${escapeHtml(item.quantity || '1')}</span>
                             </div>
                         </div>
                     </div>
-                    <button onclick="loescheArtikel('${item.id}')" class="text-slate-300 hover:text-red-500 p-2 transition">
+                    <button onclick="loescheArtikel('${item.id}')" class="text-slate-300 dark:text-slate-600 hover:text-red-500 p-2 transition">
                         🗑️
                     </button>
                 `;
