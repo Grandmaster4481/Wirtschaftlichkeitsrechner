@@ -1,184 +1,260 @@
 <!DOCTYPE html>
-<html lang="de" class="h-full">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Familien-Einkauf</title>
+    <title>Familien-Einkaufsliste</title>
+    <!-- Tailwind CSS für modernes Design -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3b82f6">
 </head>
-<body class="bg-slate-100 h-full flex flex-col">
-    <header class="bg-indigo-600 text-white shadow-md p-4 flex justify-between items-center">
-        <div class="flex items-center space-x-2">
-            <i class="fa-solid fa-basket-shopping text-2xl"></i>
-            <h1 class="text-xl font-bold">Familien-Einkauf</h1>
-        </div>
-        <div id="sync-status" class="text-xs bg-emerald-500 text-white px-2 py-1 rounded-full flex items-center space-x-1">
-            <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-            <span>Verbunden (Google Sheets)</span>
-        </div>
-    </header>
+<body class="bg-slate-100 min-h-screen text-slate-800">
 
-    <main class="flex-1 max-w-lg w-full mx-auto p-4 flex flex-col space-y-4 overflow-y-auto">
-        <!-- Eingabebereich -->
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
-            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Neues Produkt</label>
-            <input type="text" id="item-input" placeholder="z.B. Milch, Äpfel..." class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <div class="grid grid-cols-2 gap-2">
-                <select id="category-input" class="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
-                    <option value="Obst & Gemüse">🍎 Obst & Gemüse</option>
-                    <option value="Kühlregal">🧀 Kühlregal</option>
-                    <option value="Getränke">🥤 Getränke</option>
-                    <option value="Drogerie">🧴 Drogerie</option>
-                    <option value="Sonstiges">🛒 Sonstiges</option>
-                </select>
-                <input type="number" id="quantity-input" value="1" min="1" class="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+    <div class="max-w-md mx-auto p-4 sm:p-6">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-blue-600">🛒 Einkaufsliste</h1>
+            <button onclick="ladeDaten()" class="text-sm bg-white border border-slate-300 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 active:scale-95 transition">
+                🔄 Aktualisieren
+            </button>
+        </header>
+
+        <!-- Eingabeformular mit Sprachsteuerung -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm mb-6 space-y-3">
+            <div>
+                <div class="flex justify-between items-center mb-1">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase">Artikel</label>
+                    <button onclick="sprachEingabeStarten()" id="micButton" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded-lg transition flex items-center gap-1 font-medium">
+                        🎤 Einsprechen
+                    </button>
+                </div>
+                <input type="text" id="itemText" placeholder="z. B. Milch, Äpfel..." class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
-            <button onclick="addItem()" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition">
-                <i class="fa-solid fa-plus mr-1"></i> Hinzufügen
+
+            <div class="flex gap-2">
+                <div class="flex-1">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Markt</label>
+                    <!-- Dynamisches Dropdown für Märkte -->
+                    <select id="marketSelect" class="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Lade Märkte...</option>
+                    </select>
+                </div>
+                <div class="w-24">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Anzahl</label>
+                    <input type="text" id="itemQty" value="1" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <button onclick="artikelHinzufuegen()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-xl shadow-sm transition active:scale-95">
+                + Hinzufügen
             </button>
         </div>
 
-        <div class="flex justify-between items-center text-sm text-slate-600 px-1">
-            <span id="item-count">0 offene Artikel</span>
-            <div class="space-x-3">
-                <button onclick="loadFromCloud()" class="text-indigo-600 hover:underline"><i class="fa-solid fa-rotate mr-1"></i>Synchronisieren</button>
-                <button onclick="clearBought()" class="text-rose-600 hover:underline">Erledigte löschen</button>
-            </div>
+        <!-- Einkaufsliste Anzeige -->
+        <div id="shoppingListContainer" class="space-y-2">
+            <!-- Dynamische Einträge landen hier -->
+            <div class="text-center text-slate-400 py-8">Lade Einkaufsliste...</div>
         </div>
+    </div>
 
-        <!-- Listenbereich -->
-        <div id="list-container" class="space-y-4"></div>
-    </main>
-
+    <!-- JavaScript Logik -->
     <script>
-        // HIER DEINE GANZ FRISCH KOPIERTE WEB-APP-URL EINTRAGEN:
-        const API_URL = "https://script.google.com/macros/s/AKfycbxDMU3SRex-kTR6c1XBHS5PyDejCK_sa4hqst4VO6sbeKCAkvmufBdq1w1-eKY7ZlAw/exec";
-        let items = [];
+        // TRAGE HIER DEINE GOOGLE APPS SCRIPT WEB-APP URL EIN:
+        const APPS_SCRIPT_URL = "HIER_DEINE_APPS_SCRIPT_URL_EINSETZEN";
 
-        async function loadFromCloud() {
-            try {
-                const res = await fetch(API_URL);
-                const data = await res.json();
-                if (Array.isArray(data)) {
-                    items = data
-                        .filter(i => i && (i.text || i[1])) // Leere/ungültige Zeilen filtern
-                        .map(i => ({
-                            id: i.id || i[0] || String(Math.random()),
-                            text: i.text || i[1] || "Unbekannter Artikel",
-                            category: i.category || i[2] || "Sonstiges",
-                            quantity: i.quantity || i[3] || 1,
-                            bought: String(i.bought ?? i[4]) === "true" || i.bought === true || i[4] === true
-                        }));
-                    render();
-                }
-            } catch (e) {
-                console.error("Ladefehler:", e);
-            }
-        }
+        // Beim Laden der Seite Daten abrufen
+        window.addEventListener("DOMContentLoaded", () => {
+            ladeDaten();
+        });
 
-        async function saveToCloud() {
-            try {
-                await fetch(API_URL, {
-                    method: "POST",
-                    mode: "no-cors",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(items)
-                });
-            } catch (e) {
-                console.error("Speicherfehler:", e);
-            }
-        }
-
-        function addItem() {
-            const input = document.getElementById("item-input");
-            const catInput = document.getElementById("category-input");
-            const qtyInput = document.getElementById("quantity-input");
-            
-            const text = input.value.trim();
-            if (!text) return;
-
-            items.push({
-                id: Date.now().toString(),
-                text: text,
-                category: catInput.value || "Sonstiges",
-                quantity: qtyInput.value || 1,
-                bought: false
-            });
-
-            input.value = "";
-            qtyInput.value = "1";
-            render();
-            saveToCloud();
-        }
-
-        function toggleItem(id) {
-            const item = items.find(i => i.id == id);
-            if (item) {
-                item.bought = !item.bought;
-                render();
-                saveToCloud();
-            }
-        }
-
-        function deleteItem(id) {
-            items = items.filter(i => i.id != id);
-            render();
-            saveToCloud();
-        }
-
-        function clearBought() {
-            items = items.filter(i => !i.bought);
-            render();
-            saveToCloud();
-        }
-
-        function render() {
-            const container = document.getElementById("list-container");
-            container.innerHTML = "";
-
-            const openCount = items.filter(i => !i.bought).length;
-            document.getElementById("item-count").innerText = `${openCount} offene Artikel`;
-
-            const categories = [...new Set(items.map(i => i.category || "Sonstiges"))];
-
-            if (categories.length === 0 || items.length === 0) {
-                container.innerHTML = `<div class="text-center py-8 text-slate-400">Keine Artikel auf der Liste.</div>`;
+        async function ladeDaten() {
+            if (APPS_SCRIPT_URL.includes("HIER_DEINE")) {
+                document.getElementById("shoppingListContainer").innerHTML = `
+                    <div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm">
+                        Bitte trage deine Google Apps Script URL im JavaScript-Bereich der <code>index.html</code> ein!
+                    </div>`;
                 return;
             }
 
-            categories.forEach(cat => {
-                const catItems = items.filter(i => (i.category || "Sonstiges") === cat);
-                if (catItems.length === 0) return;
+            try {
+                const response = await fetch(APPS_SCRIPT_URL);
+                const data = await response.json();
+                
+                // 1. Markt-Dropdown befüllen
+                aktualisiereMarktDropdown(data.markets);
+                
+                // 2. Einkaufsliste rendern
+                renderEinkaufsliste(data.items);
+                
+            } catch (error) {
+                console.error("Fehler beim Laden:", error);
+                document.getElementById("shoppingListContainer").innerHTML = `
+                    <div class="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm">
+                        Fehler beim Laden der Daten. Bitte Verbindung prüfen.
+                    </div>`;
+            }
+        }
 
-                let html = `
-                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div class="bg-slate-50 px-4 py-2 border-b border-slate-200 font-semibold text-xs text-slate-600 uppercase tracking-wider">${cat}</div>
-                        <div class="divide-y divide-slate-100">
-                `;
+        // Sprachsteuerung per Web Speech API
+        function sprachEingabeStarten() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Spracherkennung wird von deinem Browser auf diesem Gerät leider nicht unterstützt.");
+                return;
+            }
 
-                catItems.forEach(item => {
-                    html += `
-                        <div class="flex items-center justify-between p-3 hover:bg-slate-50 transition">
-                            <label class="flex items-center space-x-3 flex-1 cursor-pointer">
-                                <input type="checkbox" ${item.bought ? 'checked' : ''} onchange="toggleItem('${item.id}')" class="w-5 h-5 text-indigo-600 rounded">
-                                <span class="${item.bought ? 'line-through text-slate-400' : 'text-slate-800'} font-medium">
-                                    ${item.text} <span class="text-xs text-slate-400 font-normal">(${item.quantity})</span>
-                                </span>
-                            </label>
-                            <button onclick="deleteItem('${item.id}')" class="text-slate-400 hover:text-rose-600 p-2"><i class="fa-solid fa-trash"></i></button>
-                        </div>
-                    `;
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'de-DE';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            const micButton = document.getElementById("micButton");
+            micButton.classList.add("bg-red-500", "text-white", "animate-pulse");
+            micButton.textContent = "🔴 Höre zu...";
+
+            recognition.onresult = function(event) {
+                const speechResult = event.results[0][0].transcript;
+                document.getElementById("itemText").value = speechResult;
+            };
+
+            recognition.onerror = function(event) {
+                console.error("Sprachfehler:", event.error);
+            };
+
+            recognition.onend = function() {
+                micButton.classList.remove("bg-red-500", "text-white", "animate-pulse");
+                micButton.textContent = "🎤 Einsprechen";
+            };
+
+            recognition.start();
+        }
+
+        function aktualisiereMarktDropdown(markets) {
+            const selectElement = document.getElementById("marketSelect");
+            const currentSelection = selectElement.value;
+            selectElement.innerHTML = "";
+            
+            if (markets && markets.length > 0) {
+                markets.forEach(market => {
+                    const option = document.createElement("option");
+                    option.value = market;
+                    option.textContent = market;
+                    selectElement.appendChild(option);
                 });
+            } else {
+                const option = document.createElement("option");
+                option.value = "";
+                option.textContent = "Keine Märkte im Reiter 'Markt' gefunden";
+                selectElement.appendChild(option);
+            }
 
-                html += `</div></div>`;
-                container.innerHTML += html;
+            if (currentSelection) {
+                selectElement.value = currentSelection;
+            }
+        }
+
+        function renderEinkaufsliste(items) {
+            const container = document.getElementById("shoppingListContainer");
+            
+            if (!items || items.length === 0) {
+                container.innerHTML = `<div class="text-center text-slate-400 py-8 bg-white rounded-2xl border border-slate-200">Die Einkaufsliste ist leer.</div>`;
+                return;
+            }
+
+            container.innerHTML = "";
+            
+            items.forEach(item => {
+                const isBought = item.bought === true || item.bought === "true";
+                const div = document.createElement("div");
+                div.className = `flex items-center justify-between p-3.5 bg-white rounded-xl border border-slate-200 shadow-sm transition ${isBought ? 'opacity-50 bg-slate-50' : ''}`;
+                
+                div.innerHTML = `
+                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                        <input type="checkbox" ${isBought ? 'checked' : ''} onchange="statusÄndern('${item.id}', this.checked)" class="w-5 h-5 accent-blue-600 rounded cursor-pointer">
+                        <div class="min-w-0">
+                            <p class="font-medium text-slate-800 truncate ${isBought ? 'line-through text-slate-400' : ''}">${escapeHtml(item.text)}</p>
+                            <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">📍 ${escapeHtml(item.category || 'Allgemein')} (Anzahl: ${escapeHtml(item.quantity || '1')})</span>
+                        </div>
+                    </div>
+                    <button onclick="loescheArtikel('${item.id}')" class="text-slate-400 hover:text-red-500 p-2 transition">
+                        🗑️
+                    </button>
+                `;
+                container.appendChild(div);
             });
         }
 
-        loadFromCloud();
-        setInterval(loadFromCloud, 5000); // Live-Polling alle 5 Sekunden
+        async function artikelHinzufuegen() {
+            const textInput = document.getElementById("itemText");
+            const marketSelect = document.getElementById("marketSelect");
+            const qtyInput = document.getElementById("itemQty");
+
+            const text = textInput.value.trim();
+            const category = marketSelect.value;
+            const quantity = qtyInput.value.trim() || "1";
+
+            if (!text) {
+                alert("Bitte einen Artikel eingeben.");
+                return;
+            }
+
+            const newItem = {
+                action: "add",
+                id: 'id_' + Date.now(),
+                text: text,
+                category: category,
+                quantity: quantity,
+                bought: false
+            };
+
+            textInput.value = "";
+            await sendeAnBackend(newItem);
+        }
+
+        async function statusÄndern(id, boughtStatus) {
+            const payload = {
+                action: "toggle",
+                id: id,
+                bought: boughtStatus
+            };
+            await sendeAnBackend(payload);
+        }
+
+        async function loescheArtikel(id) {
+            const payload = {
+                action: "delete",
+                id: id
+            };
+            await sendeAnBackend(payload);
+        }
+
+        async function sendeAnBackend(payload) {
+            try {
+                await fetch(APPS_SCRIPT_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify(payload)
+                });
+                
+                setTimeout(() => {
+                    ladeDaten();
+                }, 800);
+
+            } catch (error) {
+                console.error("Fehler beim Senden:", error);
+                alert("Verbindungsfehler beim Speichern.");
+            }
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
     </script>
 </body>
 </html>
