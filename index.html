@@ -4,345 +4,241 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Familien-Einkaufsliste</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2563eb">
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800 font-sans antialiased">
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-20">
 
-    <div class="max-w-md mx-auto p-4 sm:p-6 pb-24">
-        <header class="flex justify-between items-center mb-6">
-            <div>
-                <h1 class="text-2xl font-extrabold text-blue-600 tracking-tight">🛒 Einkaufsliste</h1>
-                <p class="text-xs text-slate-500">Nach Märkten gebündelt &amp; mit Logos</p>
-            </div>
-            <div class="flex items-center gap-2">
-                <span id="connectionBadge" class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" title="Verbunden"></span>
-                <button onclick="ladeDaten()" class="text-sm bg-white border border-slate-300 px-3 py-1.5 rounded-xl shadow-sm hover:bg-slate-50 active:scale-95 transition font-medium">
-                    🔄 Laden
-                </button>
-            </div>
+    <div class="max-w-md mx-auto p-4">
+        <!-- Header -->
+        <header class="mb-6 mt-2 flex justify-between items-center">
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Einkaufsliste</h1>
+            <button onclick="loadData()" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-full font-medium transition">Aktualisieren</button>
         </header>
 
-        <div class="bg-white p-4 rounded-2xl shadow-md border border-slate-100 mb-6 space-y-4">
-            <div>
-                <div class="flex justify-between items-center mb-1">
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Artikel</label>
-                    <button onclick="sprachEingabeStarten()" id="micButton" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg transition flex items-center gap-1 font-semibold">
-                        🎤 Einsprechen
+        <!-- Eingabeformular -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
+            <form id="addForm" onsubmit="addItem(event)" class="space-y-3">
+                <div>
+                    <input type="text" id="itemName" placeholder="Neuer Artikel (z.B. Milch)..." required
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                </div>
+                <div class="flex gap-2">
+                    <select id="itemMarket" class="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="Allgemein">Allgemein</option>
+                    </select>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm shadow-sm transition">
+                        Hinzufügen
                     </button>
                 </div>
-                <input type="text" id="itemText" placeholder="z. B. Milch, Brot, Äpfel..." class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800">
-            </div>
-
-            <div class="flex gap-3">
-                <div class="flex-1">
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Supermarkt</label>
-                    <!-- Markt-Dropdown -->
-                    <select id="marketSelect" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium">
-                        <option value="">Lade Märkte...</option>
-                    </select>
-                </div>
-                <div class="w-24">
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Anzahl</label>
-                    <input type="text" id="itemQty" value="1" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800">
-                </div>
-            </div>
-
-            <button id="submitBtn" onclick="artikelHinzufuegen()" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-500/30 transition active:scale-95 flex items-center justify-center gap-2">
-                <span>+ Artikel hinzufügen</span>
-            </button>
+            </form>
         </div>
 
-        <div id="statusInfo" class="hidden mb-3 text-xs text-center py-2 px-3 rounded-xl"></div>
-
-        <!-- Einkaufsliste Anzeige (Gebündelt nach Markt mit Logos) -->
-        <div id="shoppingListContainer" class="space-y-4">
-            <div class="text-center text-slate-400 py-8 bg-white rounded-2xl border border-slate-200 shadow-sm">Lade Daten aus Google Sheets...</div>
+        <!-- Einkaufsliste -->
+        <div id="shoppingList" class="space-y-4">
+            <div class="text-center py-10 text-slate-400 text-sm">Lade Daten...</div>
         </div>
     </div>
 
     <script>
-        // Deine hinterlegte Google Apps Script Web-App URL:
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyraN51T7Olunfs830ukzQZZBxNcZJvgpg1T41sTHhnOy1k-2qtuLQJ31ezOQRBBui7/exec";
+        
+        let allItems = [];
+        let marketDataMap = {};
 
-        // Lokaler State für sofortiges UI-Feedback (Optimistic UI)
-        let globalItems = [];
-        let globalMarkets = [];
-
-        window.addEventListener("DOMContentLoaded", () => {
-            ladeDaten();
+        // Übersetzungstabelle für deutsche Farbnamen aus der Tabelle (Spalte B & C)
+        function resolveColor(colorName, type = 'bg') {
+            if (!colorName) return type === 'bg' ? '#94a3b8' : (type === 'text' ? '#ffffff' : '#f1f5f9');
+            const c = String(colorName).toLowerCase().trim();
             
-            // Enter-Taste im Textfeld zum Abschicken nutzen
-            document.getElementById("itemText").addEventListener("keypress", (e) => {
-                if (e.key === "Enter") artikelHinzufuegen();
-            });
-            document.getElementById("itemQty").addEventListener("keypress", (e) => {
-                if (e.key === "Enter") artikelHinzufuegen();
-            });
-        });
+            const colorTable = {
+                'gelb':        { bg: '#facc15', text: '#1e3a8a', light: '#fef08a' },
+                'blau':        { bg: '#2563eb', text: '#ffffff', light: '#dbeafe' },
+                'hellblau':    { bg: '#38bdf8', text: '#0f172a', light: '#e0f2fe' },
+                'grau':        { bg: '#94a3b8', text: '#ffffff', light: '#f1f5f9' },
+                'dunkelgrau':  { bg: '#334155', text: '#ffffff', light: '#e2e8f0' },
+                'rot':         { bg: '#dc2626', text: '#ffffff', light: '#fee2e2' },
+                'orange':      { bg: '#f97316', text: '#ffffff', light: '#ffedd5' },
+                'weiss':       { bg: '#ffffff', text: '#0f172a', light: '#f8fafc' },
+                'weiß':        { bg: '#ffffff', text: '#0f172a', light: '#f8fafc' }
+            };
 
-        async function ladeDaten() {
-            const container = document.getElementById("shoppingListContainer");
-            const badge = document.getElementById("connectionBadge");
+            if (colorTable[c]) {
+                return colorTable[c][type];
+            }
+            return c; // Falls direkt ein Hex-Code eingetragen wurde
+        }
 
+        async function loadData() {
             try {
                 const response = await fetch(APPS_SCRIPT_URL);
                 const data = await response.json();
                 
-                badge.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block";
-                badge.title = "Verbunden";
+                // 1. Märkte und Farben einlesen
+                marketDataMap = {};
+                const marketSelect = document.getElementById('itemMarket');
+                const selectedVal = marketSelect.value;
+                marketSelect.innerHTML = '';
 
-                globalMarkets = data.markets || [];
-                globalItems = data.items || [];
+                if (data.markets && data.markets.length > 0) {
+                    data.markets.forEach(m => {
+                        const mKey = m.name.toLowerCase().trim();
+                        // m.bgColor ist Spalte B, m.textColor ist Spalte C
+                        marketDataMap[mKey] = {
+                            bg: resolveColor(m.bgColor, 'bg'),
+                            text: resolveColor(m.textColor, 'text'),
+                            light: resolveColor(m.bgColor, 'light')
+                        };
 
-                // 1. Markt-Dropdown füllen
-                aktualisiereMarktDropdown(globalMarkets);
-                
-                // 2. Einkaufsliste nach Markt gruppiert mit Logos anzeigen
-                renderEinkaufsliste(globalItems, globalMarkets);
-                
-            } catch (error) {
-                console.error("Fehler beim Laden:", error);
-                badge.className = "w-2.5 h-2.5 rounded-full bg-rose-500 inline-block animate-pulse";
-                badge.title = "Verbindungshinweis / Offline";
-                
-                // Falls bereits lokale Daten vorhanden sind, trotzdem anzeigen
-                if (globalItems.length > 0) {
-                    renderEinkaufsliste(globalItems, globalMarkets);
+                        const opt = document.createElement('option');
+                        opt.value = m.name;
+                        opt.textContent = m.name;
+                        marketSelect.appendChild(opt);
+                    });
                 } else {
-                    container.innerHTML = `
-                        <div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm shadow-sm">
-                            ⚠️ Verbindung zum Server konnte nicht hergestellt werden. Bitte prüfe deine Internetverbindung.
-                        </div>`;
+                    const opt = document.createElement('option');
+                    opt.value = "Allgemein";
+                    opt.textContent = "Allgemein";
+                    marketSelect.appendChild(opt);
                 }
+                
+                if (selectedVal && Array.from(marketSelect.options).some(o => o.value === selectedVal)) {
+                    marketSelect.value = selectedVal;
+                }
+
+                // 2. Artikel einlesen
+                allItems = (data.items || []).map(item => ({
+                    id: item.id || 'id_' + Math.random(),
+                    name: item.name || "Unbenannter Artikel",
+                    market: item.market || "Allgemein",
+                    checked: !!item.checked
+                }));
+
+                renderUI();
+            } catch (err) {
+                console.error("Fehler beim Laden:", err);
+                document.getElementById('shoppingList').innerHTML = `<div class="text-center py-6 text-red-500 text-sm">Fehler beim Verbinden mit dem Server.</div>`;
             }
         }
 
-        function aktualisiereMarktDropdown(markets) {
-            const selectElement = document.getElementById("marketSelect");
-            const currentSelection = selectElement.value;
-            selectElement.innerHTML = "";
-            
-            if (markets && markets.length > 0) {
-                markets.forEach(market => {
-                    const option = document.createElement("option");
-                    option.value = market;
-                    option.textContent = market;
-                    selectElement.appendChild(option);
-                });
-            } else {
-                const option = document.createElement("option");
-                option.value = "Allgemein";
-                option.textContent = "Allgemein";
-                selectElement.appendChild(option);
-            }
+        function renderUI() {
+            const container = document.getElementById('shoppingList');
+            container.innerHTML = '';
 
-            if (currentSelection && Array.from(selectElement.options).some(o => o.value === currentSelection)) {
-                selectElement.value = currentSelection;
-            }
-        }
-
-        function getMarketBadge(marketName) {
-            const name = marketName.toLowerCase().trim();
-            
-            if (name.includes('rewe')) {
-                return `<div class="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center font-black text-xs shadow-sm">R</div>`;
-            } else if (name.includes('aldi')) {
-                return `<div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shadow-sm">A</div>`;
-            } else if (name.includes('edeka')) {
-                return `<div class="w-7 h-7 rounded-lg bg-yellow-400 text-blue-900 flex items-center justify-center font-black text-xs shadow-sm">E</div>`;
-            } else if (name.includes('dm')) {
-                return `<div class="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center font-black text-xs shadow-sm">dm</div>`;
-            } else if (name.includes('lidl')) {
-                return `<div class="w-7 h-7 rounded-lg bg-blue-700 text-yellow-400 flex items-center justify-center font-black text-xs shadow-sm">L</div>`;
-            } else if (name.includes('netto')) {
-                return `<div class="w-7 h-7 rounded-lg bg-yellow-500 text-red-600 flex items-center justify-center font-black text-xs shadow-sm">N</div>`;
-            } else if (name.includes('kaufland')) {
-                return `<div class="w-7 h-7 rounded-lg bg-red-700 text-white flex items-center justify-center font-black text-xs shadow-sm">K</div>`;
-            }
-            
-            return `<div class="w-7 h-7 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center text-xs shadow-sm">🛒</div>`;
-        }
-
-        function renderEinkaufsliste(items, markets) {
-            const container = document.getElementById("shoppingListContainer");
-            
-            if (!items || items.length === 0) {
-                container.innerHTML = `<div class="text-center text-slate-400 py-8 bg-white rounded-2xl border border-slate-200 shadow-sm">Die Einkaufsliste ist aktuell leer. Genial! 🎉</div>`;
+            if (allItems.length === 0) {
+                container.innerHTML = `<div class="text-center py-10 text-slate-400 text-sm bg-white rounded-2xl border border-slate-100">Keine Artikel auf der Liste.</div>`;
                 return;
             }
 
-            const grouped = {};
-            items.forEach(item => {
-                const cat = item.category && item.category.trim() !== "" ? item.category : "Allgemein";
-                if (!grouped[cat]) {
-                    grouped[cat] = [];
-                }
-                grouped[cat].push(item);
+            // Nach Märkten gruppieren
+            const groups = {};
+            allItems.forEach(item => {
+                const m = item.market || "Allgemein";
+                if (!groups[m]) groups[m] = [];
+                groups[m].push(item);
             });
 
-            let sortedKeys = Object.keys(grouped);
-            if (markets && markets.length > 0) {
-                sortedKeys.sort((a, b) => {
-                    let indexA = markets.indexOf(a);
-                    let indexB = markets.indexOf(b);
-                    if (indexA === -1) indexA = 999;
-                    if (indexB === -1) indexB = 999;
-                    return indexA - indexB;
-                });
-            }
+            for (const [marketName, items] of Object.entries(groups)) {
+                const mKey = marketName.toLowerCase().trim();
+                const mStyle = marketDataMap[mKey] || { bg: '#94a3b8', text: '#ffffff', light: '#f1f5f9' };
 
-            container.innerHTML = "";
-
-            sortedKeys.forEach(market => {
-                const marketItems = grouped[market];
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4';
                 
-                const sectionDiv = document.createElement("div");
-                sectionDiv.className = "bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-3";
-                
-                let headerHtml = `
-                    <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center">
+                // Header: Hintergrund im hellen Ton, farbiges Badge mit Anfangsbuchstabe
+                const headerHtml = `
+                    <div class="px-4 py-3 flex items-center justify-between border-b border-slate-100" style="background-color: ${mStyle.light};">
                         <div class="flex items-center gap-2.5">
-                            ${getMarketBadge(market)}
-                            <span class="font-bold text-slate-700 text-sm">
-                                ${escapeHtml(market)}
-                            </span>
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shadow-sm" style="background-color: ${mStyle.bg}; color: ${mStyle.text};">
+                                ${marketName.charAt(0).toUpperCase()}
+                            </div>
+                            <h2 class="font-bold text-sm tracking-wide text-slate-800">${escapeHtml(marketName)}</h2>
                         </div>
-                        <span class="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">
-                            ${marketItems.length} ${marketItems.length === 1 ? 'Artikel' : 'Artikel'}
-                        </span>
+                        <span class="text-xs font-semibold px-2.5 py-1 bg-white/80 rounded-full text-slate-600 shadow-xs">${items.length}</span>
                     </div>
                 `;
 
-                let itemsHtml = '<div class="divide-y divide-slate-100">';
-                marketItems.forEach(item => {
-                    const isBought = item.bought === true || item.bought === "true";
-                    itemsHtml += `
-                        <div class="flex items-center justify-between p-3.5 transition ${isBought ? 'opacity-50 bg-slate-50/60' : 'hover:bg-slate-50/40'}">
-                            <div class="flex items-center gap-3 flex-1 min-w-0">
-                                <input type="checkbox" ${isBought ? 'checked' : ''} onchange="statusÄndern('${item.id}', this.checked)" class="w-5 h-5 accent-blue-600 rounded cursor-pointer">
-                                <div class="min-w-0">
-                                    <p class="font-semibold text-slate-800 truncate ${isBought ? 'line-through text-slate-400' : ''}">${escapeHtml(item.text)}</p>
-                                    <div class="flex items-center gap-2 mt-0.5">
-                                        <span class="text-xs text-slate-400 font-medium">Menge: ${escapeHtml(item.quantity || '1')}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button onclick="loescheArtikel('${item.id}')" class="text-slate-300 hover:text-red-500 p-2 transition">
-                                🗑️
-                            </button>
+                const itemsList = document.createElement('div');
+                itemsList.className = 'divide-y divide-slate-50';
+
+                items.forEach(item => {
+                    const row = document.createElement('div');
+                    row.className = `p-3.5 flex items-center justify-between transition ${item.checked ? 'bg-slate-50/60 opacity-60' : 'hover:bg-slate-50/40'}`;
+                    
+                    row.innerHTML = `
+                        <div class="flex items-center gap-3 flex-1 cursor-pointer" onclick="toggleItem('${escapeHtml(item.id)}')">
+                            <input type="checkbox" ${item.checked ? 'checked' : ''} class="w-5 h-5 rounded-md text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer">
+                            <span class="text-sm font-medium ${item.checked ? 'line-through text-slate-400' : 'text-slate-700'}">${escapeHtml(item.name)}</span>
                         </div>
+                        <button onclick="deleteItem('${escapeHtml(item.id)}')" class="text-slate-300 hover:text-red-500 p-1.5 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
                     `;
+                    itemsList.appendChild(row);
                 });
-                itemsHtml += '</div>';
 
-                sectionDiv.innerHTML = headerHtml + itemsHtml;
-                container.appendChild(sectionDiv);
-            });
+                groupDiv.innerHTML = headerHtml;
+                groupDiv.appendChild(itemsList);
+                container.appendChild(groupDiv);
+            }
         }
 
-        function artikelHinzufuegen() {
-            const textInput = document.getElementById("itemText");
-            const marketSelect = document.getElementById("marketSelect");
-            const qtyInput = document.getElementById("itemQty");
-
-            const text = textInput.value.trim();
-            const category = marketSelect.value || "Allgemein";
-            const quantity = qtyInput.value.trim() || "1";
-
-            if (!text) {
-                return;
-            }
-
+        function addItem(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('itemName');
+            const marketInput = document.getElementById('itemMarket');
+            
             const newItem = {
-                action: "add",
                 id: 'id_' + Date.now(),
-                text: text,
-                category: category,
-                quantity: quantity,
-                bought: false
+                name: nameInput.value.trim(),
+                market: marketInput.value,
+                checked: false
             };
 
-            // Feld sofort leeren
-            textInput.value = "";
-            textInput.focus();
+            allItems.unshift(newItem);
+            nameInput.value = '';
+            renderUI();
 
-            // 1. Sofort lokal hinzufügen und rendern (0ms Verzögerung)
-            globalItems.unshift(newItem);
-            renderEinkaufsliste(globalItems, globalMarkets);
-
-            // 2. Im Hintergrund an Backend senden (Fire-and-Forget, blockiert nicht)
-            sendeAnBackend(newItem);
-        }
-
-        function statusÄndern(id, boughtStatus) {
-            // 1. Lokalen Zustand sofort anpassen
-            const item = globalItems.find(i => String(i.id) === String(id));
-            if (item) {
-                item.bought = boughtStatus;
-                renderEinkaufsliste(globalItems, globalMarkets);
-            }
-
-            // 2. Im Hintergrund an Backend senden
-            sendeAnBackend({ action: "toggle", id: id, bought: boughtStatus });
-        }
-
-        function loescheArtikel(id) {
-            // 1. Sofort lokal entfernen
-            globalItems = globalItems.filter(i => String(i.id) !== String(id));
-            renderEinkaufsliste(globalItems, globalMarkets);
-
-            // 2. Im Hintergrund an Backend senden
-            sendeAnBackend({ action: "delete", id: id });
-        }
-
-        function sendeAnBackend(payload) {
-            // Fire-and-Forget: Kein await, kein Warten auf Serverantwort
             fetch(APPS_SCRIPT_URL, {
-                method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "text/plain" },
-                body: JSON.stringify(payload)
-            }).catch(error => {
-                console.error("Hintergrund-Synchronisationsfehler:", error);
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add', ...newItem })
             });
         }
 
-        function sprachEingabeStarten() {
-            const TheSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!TheSpeechRecognition) {
-                return;
+        function toggleItem(id) {
+            const item = allItems.find(i => i.id === id);
+            if (item) {
+                item.checked = !item.checked;
+                renderUI();
+
+                fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'toggle', id: id, name: item.name, market: item.market })
+                });
             }
+        }
 
-            const recognition = new TheSpeechRecognition();
-            recognition.lang = 'de-DE';
-            recognition.interimResults = false;
+        function deleteItem(id) {
+            const item = allItems.find(i => i.id === id);
+            allItems = allItems.filter(i => i.id !== id);
+            renderUI();
 
-            const micButton = document.getElementById("micButton");
-            micButton.classList.add("bg-red-500", "text-white", "animate-pulse");
-            micButton.textContent = "🔴 Höre zu...";
-
-            recognition.onresult = function(event) {
-                document.getElementById("itemText").value = event.results[0][0].transcript;
-            };
-
-            recognition.onend = function() {
-                micButton.classList.remove("bg-red-500", "text-white", "animate-pulse");
-                micButton.textContent = "🎤 Einsprechen";
-            };
-
-            recognition.start();
+            fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'delete', id: id, name: item ? item.name : '', market: item ? item.market : '' })
+            });
         }
 
         function escapeHtml(str) {
-            return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
+
+        loadData();
     </script>
 </body>
 </html>
