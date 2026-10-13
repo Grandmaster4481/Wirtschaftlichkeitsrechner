@@ -1,282 +1,377 @@
 <!DOCTYPE html>
-<html lang="de" class="h-full">
+<html lang="de" class="light">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Familien Einkaufsliste</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-    }
-  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Familien-Einkaufsliste</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <script>
+        if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
 </head>
-<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-full transition-colors duration-200">
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen pb-24 font-sans antialiased transition-colors duration-200">
 
-  <div class="max-w-md mx-auto p-4 pb-20">
-    
-    <!-- Header -->
-    <header class="flex items-center justify-between mb-6 pt-2">
-      <div class="flex items-center gap-2">
-        <span class="text-3xl">🛒</span>
-        <div>
-          <h1 class="text-xl font-bold leading-tight">Einkaufsliste</h1>
-          <p class="text-xs text-slate-500 dark:text-slate-400">Gemeinsam organisiert</p>
-        </div>
-      </div>
-      
-      <!-- Theme Toggle Button -->
-      <button id="themeToggle" onclick="toggleTheme()" class="p-2.5 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 active:scale-95 transition-transform">
-        <span id="themeIcon" class="text-lg">🌙</span>
-      </button>
-    </header>
-
-    <!-- Formular zum Hinzufügen -->
-    <form id="addForm" onsubmit="addItem(event)" class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6 space-y-3">
-      <div class="relative">
-        <input type="text" id="itemName" placeholder="Artikel hinzufügen..." required
-               class="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
-      </div>
-
-      <div class="grid grid-cols-12 gap-2">
-        <input type="text" id="itemQuantity" placeholder="Menge" value="1"
-               class="col-span-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-center">
-
-        <select id="itemMarket" class="col-span-5 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
-          <option value="Allgemein">Allgemein</option>
-        </select>
-
-        <select id="itemUser" onchange="saveSelectedUser(this.value)" class="col-span-4 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium">
-          <option value="">Wer?</option>
-        </select>
-      </div>
-
-      <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium py-3 rounded-xl shadow-sm transition-colors text-sm flex items-center justify-center gap-2">
-        <span>+ Artikel hinzufügen</span>
-      </button>
-    </form>
-
-    <div id="status" class="text-xs text-center mb-4 text-slate-400 min-h-[1rem]">Lade Daten...</div>
-
-    <div id="itemList" class="space-y-6"></div>
-  </div>
-
-  <script>
-    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyraN51T7Olunfs830ukzQZZBxNcZJvgpg1T41sTHhnOy1k-2qtuLQJ31ezOQRBBui7/exec";
-
-    let state = {
-      items: [],
-      markets: [],
-      users: []
-    };
-
-    function initTheme() {
-      const isDark = localStorage.getItem('theme') === 'dark' || 
-        (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-        document.getElementById('themeIcon').textContent = '☀️';
-      } else {
-        document.documentElement.classList.remove('dark');
-        document.getElementById('themeIcon').textContent = '🌙';
-      }
-    }
-
-    function toggleTheme() {
-      const isDark = document.documentElement.classList.toggle('dark');
-      localStorage.setItem('theme', isDark ? 'dark' : 'light');
-      document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
-    }
-
-    function saveSelectedUser(user) {
-      localStorage.setItem('preferredUser', user);
-    }
-
-    async function loadData() {
-      showStatus("Synchronisiere...");
-      try {
-        const res = await fetch(APPS_SCRIPT_URL);
-        const data = await res.json();
-        state = data;
-        render();
-        showStatus("");
-      } catch (err) {
-        showStatus("Fehler beim Laden");
-        console.error(err);
-      }
-    }
-
-    async function addItem(e) {
-      e.preventDefault();
-      const nameInput = document.getElementById('itemName');
-      const qtyInput = document.getElementById('itemQuantity');
-      const marketSelect = document.getElementById('itemMarket');
-      const userSelect = document.getElementById('itemUser');
-
-      const newItem = {
-        id: 'id_' + Date.now(),
-        name: nameInput.value.trim(),
-        quantity: qtyInput.value.trim() || "1",
-        market: marketSelect.value || "Allgemein",
-        user: userSelect.value || "",
-        checked: false
-      };
-
-      if (!newItem.name) return;
-
-      state.items.push(newItem);
-      render();
-
-      nameInput.value = "";
-      qtyInput.value = "1";
-
-      showStatus("Speichere...");
-      try {
-        await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          body: JSON.stringify({ action: "add", ...newItem })
-        });
-        showStatus("");
-      } catch (err) {
-        showStatus("Fehler beim Speichern");
-        loadData();
-      }
-    }
-
-    async function toggleItem(id) {
-      const item = state.items.find(i => i.id === id);
-      if (item) item.checked = !item.checked;
-      render();
-
-      try {
-        await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          body: JSON.stringify({ action: "toggle", id: id })
-        });
-      } catch (err) {
-        loadData();
-      }
-    }
-
-    async function deleteItem(id) {
-      state.items = state.items.filter(i => i.id !== id);
-      render();
-
-      try {
-        await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          body: JSON.stringify({ action: "delete", id: id })
-        });
-      } catch (err) {
-        loadData();
-      }
-    }
-
-    function showStatus(msg) {
-      document.getElementById('status').textContent = msg;
-    }
-
-    function render() {
-      const marketSelect = document.getElementById('itemMarket');
-      const currentMarket = marketSelect.value;
-      marketSelect.innerHTML = state.markets.map(m => 
-        `<option value="${m.name}">${m.name}</option>`
-      ).join('');
-      if (currentMarket && state.markets.some(m => m.name === currentMarket)) {
-        marketSelect.value = currentMarket;
-      }
-
-      const userSelect = document.getElementById('itemUser');
-      const savedUser = localStorage.getItem('preferredUser');
-      userSelect.innerHTML = `<option value="">Wer?</option>` + state.users.map(u => 
-        `<option value="${u}">${u}</option>`
-      ).join('');
-      
-      if (savedUser && state.users.includes(savedUser)) {
-        userSelect.value = savedUser;
-      }
-
-      const listContainer = document.getElementById('itemList');
-      listContainer.innerHTML = "";
-
-      if (state.items.length === 0) {
-        listContainer.innerHTML = `
-          <div class="text-center py-12 text-slate-400">
-            <span class="text-4xl block mb-2">🎉</span>
-            <p>Alles erledigt! Keine Artikel auf der Liste.</p>
-          </div>`;
-        return;
-      }
-
-      const grouped = {};
-      state.items.forEach(item => {
-        const m = item.market || "Allgemein";
-        if (!grouped[m]) grouped[m] = [];
-        grouped[m].push(item);
-      });
-
-      Object.keys(grouped).forEach(marketName => {
-        const items = grouped[marketName];
-        const marketConfig = state.markets.find(m => m.name === marketName) || {
-          bgColor: "#e5e7eb",
-          textColor: "#1f2937",
-          headerColor: "#f3f4f6"
-        };
-
-        const section = document.createElement('div');
-        section.className = "rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden";
-
-        // Header direkt mit Spalte-D-Farbe (headerColor) belegen
-        const header = document.createElement('div');
-        header.className = "px-4 py-3 font-semibold text-sm flex items-center justify-between";
-        header.style.backgroundColor = marketConfig.headerColor;
-        header.style.color = "#0f172a"; 
-        header.innerHTML = `<span>${marketName}</span> <span class="text-xs opacity-60">${items.length} Artikel</span>`;
-
-        const ul = document.createElement('ul');
-        ul.className = "divide-y divide-slate-100 dark:divide-slate-700/50";
-
-        items.forEach(item => {
-          const li = document.createElement('li');
-          li.className = "p-3.5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors";
-
-          li.innerHTML = `
-            <div class="flex items-center gap-3 min-w-0 cursor-pointer" onclick="toggleItem('${item.id}')">
-              <input type="checkbox" ${item.checked ? 'checked' : ''} 
-                     class="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-              <div class="min-w-0">
-                <p class="text-sm font-medium ${item.checked ? 'line-through text-slate-400 dark:text-slate-500' : ''}">
-                  ${item.name}
-                </p>
-                <div class="flex items-center gap-2 mt-0.5">
-                  <span class="text-xs text-slate-500 dark:text-slate-400">Menge: ${item.quantity}</span>
-                  ${item.user ? `<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">👤 ${item.user}</span>` : ''}
-                </div>
-              </div>
+    <div class="max-w-md mx-auto p-4 sm:p-6">
+        <header class="mb-6 mt-2 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight">🛒 Einkaufsliste</h1>
+                <p class="text-xs text-slate-400 dark:text-slate-500">Märkte, Farben, Mülleimer &amp; Dark Mode</p>
             </div>
-
             <div class="flex items-center gap-2">
-              <span class="text-xs px-2.5 py-1 rounded-lg font-medium shadow-sm"
-                    style="background-color: ${marketConfig.bgColor}; color: ${marketConfig.textColor};">
-                ${marketName}
-              </span>
-
-              <button onclick="deleteItem('${item.id}')" class="text-slate-300 hover:text-red-500 p-1 text-base transition-colors">
-                ✕
-              </button>
+                <span id="connectionBadge" class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" title="Verbunden"></span>
+                <button onclick="toggleTheme()" id="themeBtn" class="text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition active:scale-95 font-medium" title="Theme wechseln">
+                    🌙
+                </button>
+                <button onclick="ladeDaten()" class="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-1 font-medium" title="Aktualisieren">
+                    🔄
+                </button>
             </div>
-          `;
-          ul.appendChild(li);
+        </header>
+
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 mb-6">
+            <form id="addForm" onsubmit="artikelHinzufuegen(event)" class="space-y-3">
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Artikel</label>
+                        <button onclick="sprachEingabeStarten()" id="micButton" type="button" class="text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-lg transition flex items-center gap-1 font-semibold">
+                            🎤 Einsprechen
+                        </button>
+                    </div>
+                    <input type="text" id="itemName" placeholder="Neuer Artikel (z.B. Milch)..." required
+                        class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-slate-100">
+                </div>
+
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Supermarkt</label>
+                        <select id="itemMarket" class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 dark:text-slate-100">
+                            <option value="Allgemein">Allgemein</option>
+                        </select>
+                    </div>
+                    <div class="w-24">
+                        <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Menge</label>
+                        <input type="text" id="itemQty" value="1" placeholder="Menge"
+                            class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 dark:text-slate-100">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Wer möchte es? (User)</label>
+                    <select id="itemUser" onchange="speichereUser(this.value)" class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 dark:text-slate-100">
+                        <option value="Familie">Familie</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-blue-500/20 transition">
+                    + Artikel hinzufügen
+                </button>
+            </form>
+        </div>
+
+        <div id="shoppingListContainer" class="space-y-4">
+            <div class="text-center py-10 text-slate-400 text-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">Lade Daten aus Google Sheets...</div>
+        </div>
+    </div>
+
+    <script>
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyraN51T7Olunfs830ukzQZZBxNcZJvgpg1T41sTHhnOy1k-2qtuLQJ31ezOQRBBui7/exec";
+        
+        let allItems = [];
+        let marketDataMap = {};
+        let availableUsers = [];
+
+        window.addEventListener("DOMContentLoaded", () => {
+            aktualisiereThemeIcon();
+            ladeDaten();
         });
 
-        section.appendChild(header);
-        section.appendChild(ul);
-        listContainer.appendChild(section);
-      });
-    }
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+            aktualisiereThemeIcon();
+            renderUI();
+        }
 
-    initTheme();
-    loadData();
-  </script>
+        function aktualisiereThemeIcon() {
+            const btn = document.getElementById('themeBtn');
+            const isDark = document.documentElement.classList.contains('dark');
+            btn.textContent = isDark ? '☀️' : '🌙';
+        }
+
+        function parseColorName(colorStr, fallbackHex) {
+            if (!colorStr) return fallbackHex;
+            const c = String(colorStr).toLowerCase().trim();
+            const palette = {
+                'gelb': '#facc15', 'blau': '#2563eb', 'hellblau': '#38bdf8', 'dunkelblau': '#1e3a8a',
+                'grau': '#94a3b8', 'dunkelgrau': '#334155', 'rot': '#dc2626', 'orange': '#f97316',
+                'weiss': '#ffffff', 'weiß': '#ffffff', 'schwarz': '#000000', 'gruen': '#22c55e', 'grün': '#22c55e'
+            };
+            return palette[c] || (c.startsWith('#') ? c : fallbackHex);
+        }
+
+        function speichereUser(selectedUser) {
+            localStorage.setItem('shopping_user', selectedUser);
+        }
+
+        async function ladeDaten() {
+            const badge = document.getElementById('connectionBadge');
+            try {
+                const response = await fetch(APPS_SCRIPT_URL);
+                const data = await response.json();
+                
+                badge.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block";
+                badge.title = "Verbunden";
+                
+                marketDataMap = {};
+                const marketSelect = document.getElementById('itemMarket');
+                const selectedMarketVal = marketSelect.value;
+                marketSelect.innerHTML = '';
+
+                if (data.markets && data.markets.length > 0) {
+                    data.markets.forEach(m => {
+                        const mKey = m.name.toLowerCase().trim();
+                        const bgHex = parseColorName(m.bgColor, '#94a3b8');
+                        const textHex = parseColorName(m.textColor, '#ffffff');
+                        const headerHex = parseColorName(m.headerColor, '#f3f4f6');
+
+                        marketDataMap[mKey] = {
+                            bg: bgHex,
+                            text: textHex,
+                            headerBg: headerHex
+                        };
+
+                        const opt = document.createElement('option');
+                        opt.value = m.name;
+                        opt.textContent = m.name;
+                        marketSelect.appendChild(opt);
+                    });
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = "Allgemein";
+                    opt.textContent = "Allgemein";
+                    marketSelect.appendChild(opt);
+                }
+                
+                if (selectedMarketVal && Array.from(marketSelect.options).some(o => o.value === selectedMarketVal)) {
+                    marketSelect.value = selectedMarketVal;
+                }
+
+                availableUsers = data.users || ["Familie"];
+                const userSelect = document.getElementById('itemUser');
+                const savedUser = localStorage.getItem('shopping_user') || availableUsers[0];
+                userSelect.innerHTML = '';
+
+                availableUsers.forEach(u => {
+                    const opt = document.createElement('option');
+                    opt.value = u;
+                    opt.textContent = u;
+                    userSelect.appendChild(opt);
+                });
+
+                if (availableUsers.includes(savedUser)) {
+                    userSelect.value = savedUser;
+                } else {
+                    userSelect.value = availableUsers[0];
+                    speichereUser(availableUsers[0]);
+                }
+
+                allItems = (data.items || []).map(item => ({
+                    id: item.id || 'id_' + Math.random(),
+                    name: item.name || "Unbenannter Artikel",
+                    market: item.market || "Allgemein",
+                    quantity: item.quantity || "1",
+                    user: item.user || "",
+                    checked: !!item.checked
+                }));
+
+                renderUI();
+            } catch (err) {
+                console.error("Fehler beim Laden:", err);
+                badge.className = "w-2.5 h-2.5 rounded-full bg-rose-500 inline-block animate-pulse";
+                badge.title = "Verbindungsfehler";
+                
+                if (allItems.length > 0) {
+                    renderUI();
+                } else {
+                    document.getElementById('shoppingListContainer').innerHTML = `<div class="text-center py-6 text-rose-500 text-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">Verbindungsfehler. Bitte Internet prüfen.</div>`;
+                }
+            }
+        }
+
+        function renderUI() {
+            const container = document.getElementById('shoppingListContainer');
+            container.innerHTML = '';
+
+            if (allItems.length === 0) {
+                container.innerHTML = `<div class="text-center py-10 text-slate-400 text-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">Die Liste ist leer. Alles eingekauft! 🎉</div>`;
+                return;
+            }
+
+            const groups = {};
+            allItems.forEach(item => {
+                const m = item.market || "Allgemein";
+                if (!groups[m]) groups[m] = [];
+                groups[m].push(item);
+            });
+
+            for (const [marketName, items] of Object.entries(groups)) {
+                const mKey = marketName.toLowerCase().trim();
+                const style = marketDataMap[mKey] || { bg: '#94a3b8', text: '#ffffff', headerBg: '#f3f4f6' };
+
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 overflow-hidden mb-4';
+                
+                // Header mit Farbkonfiguration aus Spalte D (headerBg) und integriertem Mülleimer
+                const headerHtml = `
+                    <div class="px-4 py-3 flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800" style="background-color: ${style.headerBg};">
+                        <div class="flex items-center gap-2.5">
+                            <div class="px-3 py-1 rounded-lg font-extrabold text-xs shadow-xs tracking-wider" style="background-color: ${style.bg}; color: ${style.text};">
+                                ${escapeHtml(marketName)}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-semibold px-2.5 py-1 bg-white/90 dark:bg-slate-900/90 rounded-full text-slate-600 dark:text-slate-300 shadow-xs">
+                                ${items.length} ${items.length === 1 ? 'Artikel' : 'Artikel'}
+                            </span>
+                            <button onclick="clearCompletedForMarket('${escapeHtml(marketName)}')" title="Erledigte Artikel löschen" class="text-slate-500 hover:text-rose-600 transition p-1 text-sm">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                const itemsList = document.createElement('div');
+                itemsList.className = 'divide-y divide-slate-100 dark:divide-slate-800';
+
+                items.forEach(item => {
+                    const row = document.createElement('div');
+                    row.className = `p-3.5 flex items-center justify-between transition ${item.checked ? 'bg-slate-50/70 dark:bg-slate-950/40 opacity-50' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/50'}`;
+                    
+                    const userBadge = item.user ? `<span class="bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-md text-[11px] font-semibold">👤 ${escapeHtml(item.user)}</span>` : '';
+
+                    row.innerHTML = `
+                        <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onclick="toggleItem('${escapeHtml(item.id)}')">
+                            <input type="checkbox" ${item.checked ? 'checked' : ''} class="w-5 h-5 accent-blue-600 rounded cursor-pointer">
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold truncate ${item.checked ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}">${escapeHtml(item.name)}</p>
+                                <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                                    <span class="text-xs text-slate-400 dark:text-slate-500 font-medium">Menge: ${escapeHtml(item.quantity || '1')}</span>
+                                    ${userBadge}
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="deleteItem('${escapeHtml(item.id)}')" class="text-slate-300 hover:text-rose-500 p-2 transition" title="Löschen">
+                            🗑️
+                        </button>
+                    `;
+                    itemsList.appendChild(row);
+                });
+
+                groupDiv.innerHTML = headerHtml;
+                groupDiv.appendChild(itemsList);
+                container.appendChild(groupDiv);
+            }
+        }
+
+        function artikelHinzufuegen(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('itemName');
+            const marketInput = document.getElementById('itemMarket');
+            const qtyInput = document.getElementById('itemQty');
+            const userSelect = document.getElementById('itemUser');
+            
+            const newItem = {
+                id: 'id_' + Date.now(),
+                name: nameInput.value.trim(),
+                market: marketInput.value,
+                quantity: qtyInput.value.trim() || "1",
+                user: userSelect.value || "Familie",
+                checked: false
+            };
+
+            allItems.unshift(newItem);
+            nameInput.value = '';
+            qtyInput.value = '1';
+            nameInput.focus();
+            renderUI();
+
+            sendeAnBackend({ action: 'add', ...newItem });
+        }
+
+        function toggleItem(id) {
+            const item = allItems.find(i => i.id === id);
+            if (item) {
+                item.checked = !item.checked;
+                renderUI();
+                sendeAnBackend({ action: 'toggle', id: id });
+            }
+        }
+
+        function deleteItem(id) {
+            allItems = allItems.filter(i => i.id !== id);
+            renderUI();
+            sendeAnBackend({ action: 'delete', id: id });
+        }
+
+        function clearCompletedForMarket(marketName) {
+            allItems = allItems.filter(i => !(i.market === marketName && i.checked));
+            renderUI();
+            sendeAnBackend({ action: 'clearCompleted', market: marketName });
+        }
+
+        function sendeAnBackend(payload) {
+            fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(error => {
+                console.error("Hintergrund-Synch-Fehler:", error);
+            });
+        }
+
+        function sprachEingabeStarten() {
+            const TheSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!TheSpeechRecognition) return;
+
+            const recognition = new TheSpeechRecognition();
+            recognition.lang = 'de-DE';
+            recognition.interimResults = false;
+
+            const micButton = document.getElementById("micButton");
+            micButton.classList.add("bg-rose-500", "text-white", "animate-pulse");
+            micButton.textContent = "🔴 Höre zu...";
+
+            recognition.onresult = function(event) {
+                document.getElementById("itemName").value = event.results[0][0].transcript;
+            };
+
+            recognition.onend = function() {
+                micButton.classList.remove("bg-rose-500", "text-white", "animate-pulse");
+                micButton.textContent = "🎤 Einsprechen";
+            };
+
+            recognition.start();
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
 </body>
 </html>
