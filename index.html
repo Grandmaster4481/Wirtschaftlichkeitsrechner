@@ -33,40 +33,31 @@
 
     <!-- Formular zum Hinzufügen -->
     <form id="addForm" onsubmit="addItem(event)" class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6 space-y-3">
-      
-      <!-- Artikel Name & Sprachsteuerung -->
       <div class="relative">
         <input type="text" id="itemName" placeholder="Artikel hinzufügen..." required
                class="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
       </div>
 
-      <!-- Parameter: Menge, Markt, Person -->
       <div class="grid grid-cols-12 gap-2">
-        <!-- Menge -->
         <input type="text" id="itemQuantity" placeholder="Menge" value="1"
                class="col-span-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-center">
 
-        <!-- Markt Dropdown -->
         <select id="itemMarket" class="col-span-5 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
           <option value="Allgemein">Allgemein</option>
         </select>
 
-        <!-- Person Dropdown -->
         <select id="itemUser" onchange="saveSelectedUser(this.value)" class="col-span-4 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium">
           <option value="">Wer?</option>
         </select>
       </div>
 
-      <!-- Hinzufügen Button -->
       <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium py-3 rounded-xl shadow-sm transition-colors text-sm flex items-center justify-center gap-2">
         <span>+ Artikel hinzufügen</span>
       </button>
     </form>
 
-    <!-- Sync-Status -->
     <div id="status" class="text-xs text-center mb-4 text-slate-400 min-h-[1rem]">Lade Daten...</div>
 
-    <!-- Artikel Liste nach Märkten -->
     <div id="itemList" class="space-y-6"></div>
   </div>
 
@@ -79,7 +70,6 @@
       users: []
     };
 
-    // Dark Mode Steuerung
     function initTheme() {
       const isDark = localStorage.getItem('theme') === 'dark' || 
         (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -98,12 +88,10 @@
       document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
     }
 
-    // Lokale Person Speicherung
     function saveSelectedUser(user) {
       localStorage.setItem('preferredUser', user);
     }
 
-    // Daten laden
     async function loadData() {
       showStatus("Synchronisiere...");
       try {
@@ -118,7 +106,6 @@
       }
     }
 
-    // Artikel hinzufügen
     async function addItem(e) {
       e.preventDefault();
       const nameInput = document.getElementById('itemName');
@@ -137,7 +124,6 @@
 
       if (!newItem.name) return;
 
-      // Optimistische UI-Aktualisierung
       state.items.push(newItem);
       render();
 
@@ -157,7 +143,6 @@
       }
     }
 
-    // Status Umschalten (Erledigt)
     async function toggleItem(id) {
       const item = state.items.find(i => i.id === id);
       if (item) item.checked = !item.checked;
@@ -173,7 +158,6 @@
       }
     }
 
-    // Artikel Löschen
     async function deleteItem(id) {
       state.items = state.items.filter(i => i.id !== id);
       render();
@@ -192,9 +176,7 @@
       document.getElementById('status').textContent = msg;
     }
 
-    // Rendering-Logik mit Hex-Farben
     function render() {
-      // 1. Märkte-Dropdown aktualisieren
       const marketSelect = document.getElementById('itemMarket');
       const currentMarket = marketSelect.value;
       marketSelect.innerHTML = state.markets.map(m => 
@@ -204,7 +186,6 @@
         marketSelect.value = currentMarket;
       }
 
-      // 2. User-Dropdown aktualisieren
       const userSelect = document.getElementById('itemUser');
       const savedUser = localStorage.getItem('preferredUser');
       userSelect.innerHTML = `<option value="">Wer?</option>` + state.users.map(u => 
@@ -215,7 +196,6 @@
         userSelect.value = savedUser;
       }
 
-      // 3. Artikel nach Märkten gruppieren
       const listContainer = document.getElementById('itemList');
       listContainer.innerHTML = "";
 
@@ -228,7 +208,6 @@
         return;
       }
 
-      // Nach Markt gruppieren
       const grouped = {};
       state.items.forEach(item => {
         const m = item.market || "Allgemein";
@@ -236,7 +215,6 @@
         grouped[m].push(item);
       });
 
-      // Rendern pro Markt
       Object.keys(grouped).forEach(marketName => {
         const items = grouped[marketName];
         const marketConfig = state.markets.find(m => m.name === marketName) || {
@@ -248,11 +226,10 @@
         const section = document.createElement('div');
         section.className = "rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden";
 
-        // Header mit Spalte-D-Farbe
+        // Header direkt mit Spalte-D-Farbe (headerColor) belegen
         const header = document.createElement('div');
         header.className = "px-4 py-3 font-semibold text-sm flex items-center justify-between";
         header.style.backgroundColor = marketConfig.headerColor;
-        // Dunkle Schrift für gute Lesbarkeit auf hellen Tönen sicherstellen
         header.style.color = "#0f172a"; 
         header.innerHTML = `<span>${marketName}</span> <span class="text-xs opacity-60">${items.length} Artikel</span>`;
 
@@ -279,7 +256,6 @@
             </div>
 
             <div class="flex items-center gap-2">
-              <!-- Markt Badge mit Spalte B (Background) & Spalte C (Text) -->
               <span class="text-xs px-2.5 py-1 rounded-lg font-medium shadow-sm"
                     style="background-color: ${marketConfig.bgColor}; color: ${marketConfig.textColor};">
                 ${marketName}
@@ -299,7 +275,6 @@
       });
     }
 
-    // Init beim Start
     initTheme();
     loadData();
   </script>
