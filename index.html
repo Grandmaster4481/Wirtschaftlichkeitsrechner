@@ -24,15 +24,15 @@
         <header class="mb-6 mt-2 flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight">🛒 Einkaufsliste</h1>
-                <p class="text-xs text-slate-400 dark:text-slate-500">Märkte, Farben, Mülleimer &amp; Dark Mode</p>
+                <p class="text-xs text-slate-400 dark:text-slate-500">Märkte, Farben, Mülleimer &amp; Animationen</p>
             </div>
             <div class="flex items-center gap-2">
                 <span id="connectionBadge" class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" title="Verbunden"></span>
                 <button onclick="toggleTheme()" id="themeBtn" class="text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition active:scale-95 font-medium" title="Theme wechseln">
                     🌙
                 </button>
-                <button onclick="ladeDaten()" class="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-1 font-medium" title="Aktualisieren">
-                    🔄
+                <button onclick="ladeDaten()" class="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-1.5 rounded-xl shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-1 font-medium" title="Aktualisieren">
+                    <span id="refreshIcon" class="inline-block transition-transform duration-500">🔄</span>
                 </button>
             </div>
         </header>
@@ -78,7 +78,10 @@
         </div>
 
         <div id="shoppingListContainer" class="space-y-4">
-            <div class="text-center py-10 text-slate-400 text-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">Lade Daten aus Google Sheets...</div>
+            <div class="text-center py-12 text-slate-400 text-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center gap-3">
+                <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <span>Lade Daten aus Google Sheets...</span>
+            </div>
         </div>
     </div>
 
@@ -130,6 +133,12 @@
 
         async function ladeDaten() {
             const badge = document.getElementById('connectionBadge');
+            const refreshIcon = document.getElementById('refreshIcon');
+            const container = document.getElementById('shoppingListContainer');
+
+            // Zeige Lade-Spinner im Container falls Liste leer ist oder beim manuellen Aktualisieren
+            refreshIcon.classList.add('animate-spin');
+
             try {
                 const response = await fetch(APPS_SCRIPT_URL);
                 const data = await response.json();
@@ -208,8 +217,12 @@
                 if (allItems.length > 0) {
                     renderUI();
                 } else {
-                    document.getElementById('shoppingListContainer').innerHTML = `<div class="text-center py-6 text-rose-500 text-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">Verbindungsfehler. Bitte Internet prüfen.</div>`;
+                    container.innerHTML = `<div class="text-center py-6 text-rose-500 text-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">Verbindungsfehler. Bitte Internet prüfen.</div>`;
                 }
+            } finally {
+                setTimeout(() => {
+                    refreshIcon.classList.remove('animate-spin');
+                }, 500);
             }
         }
 
@@ -231,14 +244,14 @@
 
             for (const [marketName, items] of Object.entries(groups)) {
                 const mKey = marketName.toLowerCase().trim();
-                const style = marketDataMap[mKey] || { bg: '#94a3b8', text: '#ffffff', headerBg: '#f3f4f6' };
+                const style = marketDataMap[mKey] || { bg: '#94a3b8', text: '#ffffff', headerColor: '#f3f4f6' };
 
                 const groupDiv = document.createElement('div');
                 groupDiv.className = 'bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 overflow-hidden mb-4';
                 
-                // Header mit Farbkonfiguration aus Spalte D (headerBg) und integriertem Mülleimer
+                // Header mit Spalte-D-Farbe (headerColor) und integriertem Mülleimer
                 const headerHtml = `
-                    <div class="px-4 py-3 flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800" style="background-color: ${style.headerBg};">
+                    <div class="px-4 py-3 flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800" style="background-color: ${style.headerColor};">
                         <div class="flex items-center gap-2.5">
                             <div class="px-3 py-1 rounded-lg font-extrabold text-xs shadow-xs tracking-wider" style="background-color: ${style.bg}; color: ${style.text};">
                                 ${escapeHtml(marketName)}
